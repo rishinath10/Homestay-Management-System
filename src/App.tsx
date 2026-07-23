@@ -31,6 +31,7 @@ import { StaffMatrixView } from './components/StaffMatrixView';
 import { NotificationLogsView } from './components/NotificationLogsView';
 import { FlutterAppHubView } from './components/FlutterAppHubView';
 import { ICalSyncView } from './components/ICalSyncView';
+import { SettingsView } from './components/SettingsView';
 import { BookingModal } from './components/BookingModal';
 import { BookingDetailModal } from './components/BookingDetailModal';
 import { triggerTelegramAndEmailAlerts } from './lib/telegramEmail';
@@ -344,7 +345,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen bg-gray-100 flex flex-col font-sans overflow-hidden">
+    <div className="h-dvh w-screen bg-gray-100 flex flex-col font-sans overflow-hidden">
       {/* Top Header */}
       <Header
         currentDate={currentDate}
@@ -411,6 +412,7 @@ export default function App() {
                 setIsBookingModalOpen(true);
               }}
               activeRole={activeRole}
+              onNavigateDate={handleNavigateDate}
             />
           )}
 
@@ -455,6 +457,14 @@ export default function App() {
               bookings={bookings}
               properties={properties}
               staffList={staffList}
+            />
+          )}
+
+          {activeTab === 'settings' && (activeRole === 'super_admin' || activeRole === 'owner') && (
+            <SettingsView
+              activeRole={activeRole}
+              userEmail={sessionUser.email}
+              userName={sessionUser.name}
             />
           )}
         </main>

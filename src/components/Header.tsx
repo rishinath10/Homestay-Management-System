@@ -55,61 +55,64 @@ export const Header: React.FC<HeaderProps> = ({
   const [showUserMenu, setShowUserMenu] = React.useState(false);
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 px-4 flex items-center justify-between sticky top-0 z-30 shadow-xs select-none">
-      {/* Left Section: Drawer Toggle, Logo, Navigation */}
-      <div className="flex items-center space-x-1.5 sm:space-x-3">
+    <header className="h-16 bg-white border-b border-gray-200 px-3 sm:px-4 flex items-center justify-between sticky top-0 z-30 shadow-xs select-none">
+      {/* Left Section: Drawer Toggle, Month navigation */}
+      <div className="flex items-center space-x-1 sm:space-x-3 shrink min-w-0">
         <button
           onClick={onToggleSidebar}
-          className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors focus:outline-hidden"
+          className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-full transition-colors focus:outline-hidden shrink-0"
           title="Toggle Navigation Drawer"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center space-x-2 mr-1 sm:mr-3">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-blue-600 via-teal-500 to-indigo-600 flex items-center justify-center text-white shadow-xs font-bold text-lg shrink-0">
-            <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+        {/* Logo (Hidden on mobile) */}
+        <div className="hidden md:flex items-center space-x-2 mr-1 sm:mr-3 shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 via-teal-500 to-indigo-600 flex items-center justify-center text-white shadow-xs font-bold text-lg">
+            <CalendarIcon className="w-5 h-5 text-white" />
           </div>
-          <div className="hidden xs:block">
+          <div>
             <div className="flex items-center space-x-1.5">
               <span className="font-semibold text-gray-900 text-sm sm:text-base leading-none">PD Holiday Villas</span>
             </div>
-            <p className="text-xs text-gray-500 hidden sm:block">Port Dickson Homestay System</p>
+            <p className="text-xs text-gray-500">Port Dickson Homestay System</p>
           </div>
         </div>
 
-        <button
-          onClick={() => onNavigateDate('today')}
-          className="px-2.5 sm:px-3.5 py-1 sm:py-1.5 border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs sm:text-sm font-medium rounded-full transition-colors focus:outline-hidden shrink-0"
-        >
-          Today
-        </button>
-
-        <div className="flex items-center space-x-0.5 sm:space-x-1">
+        {/* Navigation Arrows (Hidden on mobile) */}
+        <div className="hidden sm:flex items-center space-x-0.5 sm:space-x-1 shrink-0">
           <button
             onClick={() => onNavigateDate('prev')}
-            className="p-1 sm:p-1.5 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
             title="Previous Period"
           >
             <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <button
             onClick={() => onNavigateDate('next')}
-            className="p-1 sm:p-1.5 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
             title="Next Period"
           >
             <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
-        <h1 className="text-sm sm:text-lg font-bold sm:font-semibold text-gray-800 ml-1">
+        <h1 className="text-sm sm:text-lg font-bold sm:font-semibold text-gray-800 ml-1 truncate">
           {format(currentDate, 'MMM yyyy')}
         </h1>
       </div>
 
       {/* Right Section: View Mode, Role Switcher, Auth & Sync */}
-      <div className="flex items-center space-x-1.5 sm:space-x-3 overflow-x-auto overflow-y-hidden no-scrollbar">
-        {/* Offline / Online Status Indicator */}
+      <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
+        {/* Today Button */}
+        <button
+          onClick={() => onNavigateDate('today')}
+          className="px-2.5 sm:px-3.5 py-1 border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-medium rounded-full transition-colors focus:outline-hidden shrink-0"
+        >
+          Today
+        </button>
+
+        {/* Offline / Online Status Indicator (Hidden on mobile) */}
         <div 
           className={`hidden md:flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-medium border ${
             isOnline 
@@ -123,10 +126,10 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* View Mode Dropdown / Segmented Control */}
-        <div className="bg-gray-100 p-0.5 rounded-lg flex items-center text-[11px] sm:text-xs font-medium text-gray-700 shrink-0">
+        <div className="bg-gray-100 p-0.5 rounded-lg flex items-center text-[10px] sm:text-xs font-medium text-gray-700 shrink-0">
           <button
             onClick={() => onViewModeChange('month')}
-            className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md transition-all ${
+            className={`px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md transition-all ${
               viewMode === 'month' ? 'bg-white text-blue-600 shadow-xs font-semibold' : 'hover:text-gray-900'
             }`}
           >
@@ -134,23 +137,15 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => onViewModeChange('day')}
-            className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md transition-all ${
+            className={`px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md transition-all ${
               viewMode === 'day' ? 'bg-white text-blue-600 shadow-xs font-semibold' : 'hover:text-gray-900'
             }`}
           >
             Day
           </button>
           <button
-            onClick={() => onViewModeChange('property_grid')}
-            className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md transition-all hidden sm:block ${
-              viewMode === 'property_grid' ? 'bg-white text-blue-600 shadow-xs font-semibold' : 'hover:text-gray-900'
-            }`}
-          >
-            Grid
-          </button>
-          <button
             onClick={() => onViewModeChange('agenda')}
-            className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md transition-all ${
+            className={`px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md transition-all ${
               viewMode === 'agenda' ? 'bg-white text-blue-600 shadow-xs font-semibold' : 'hover:text-gray-900'
             }`}
           >
@@ -158,8 +153,8 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Role Display Badge */}
-        <div className="flex items-center">
+        {/* Role Display Badge (Hidden on mobile) */}
+        <div className="hidden lg:flex items-center">
           <span className={`px-3 py-1 rounded-lg text-xs font-bold border flex items-center space-x-1 shrink-0 ${
             activeRole === 'super_admin'
               ? 'bg-amber-50 text-amber-800 border-amber-200'
@@ -180,18 +175,18 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        {/* Sign Out Button */}
+        {/* Sign Out Button (Hidden on mobile) */}
         <button
           onClick={onSignOut}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition-colors border border-red-200"
+          className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition-colors border border-red-200 shrink-0"
           title="Sign Out"
         >
           <LogOut className="w-3.5 h-3.5 text-red-600" />
-          <span className="hidden sm:inline">Sign Out</span>
+          <span>Sign Out</span>
         </button>
 
         {/* User Google Account Menu */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center space-x-1.5 p-1 hover:bg-gray-100 rounded-full transition-colors border border-gray-200"

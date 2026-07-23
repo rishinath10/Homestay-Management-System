@@ -23,7 +23,9 @@ import {
   signOut as firebaseSignOut, 
   onAuthStateChanged, 
   User,
-  signInAnonymously
+  signInAnonymously,
+  setPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { Property, Staff, Booking, NotificationLog } from '../types';
@@ -34,6 +36,9 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 // Get Firestore instance with standard or named DB ID
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
 export const auth = getAuth(app);
+setPersistence(auth, browserSessionPersistence).catch((err) => {
+  console.warn('Auth persistence configuration failed:', err);
+});
 export const googleProvider = new GoogleAuthProvider();
 
 // Enable offline persistence for web
@@ -137,7 +142,7 @@ export const DEFAULT_STAFF: Staff[] = [
   {
     id: 'staff-1',
     name: 'Sue',
-    email: 'sue.pdvillas@gmail.com',
+    email: 'cikrayau00@gmail.com',
     phone: '+60123456789',
     telegramChatId: '@sue_pdvillas',
     role: 'staff',
@@ -149,7 +154,7 @@ export const DEFAULT_STAFF: Staff[] = [
   {
     id: 'staff-2',
     name: 'Yati',
-    email: 'yati.pdvillas@gmail.com',
+    email: 'noorhayatiariffin18@gmail.com',
     phone: '+60198765432',
     telegramChatId: '@yati_pdvillas',
     role: 'staff',
@@ -163,11 +168,19 @@ export const DEFAULT_STAFF: Staff[] = [
 // Helper to seed initial data into Firestore if empty
 export async function seedInitialFirestoreData() {
   try {
+    // Check if system has already been seeded or cleared intentionally
+    const configRef = doc(db, 'settings', 'system_config');
+    const configSnap = await getDoc(configRef);
+    if (configSnap.exists() && configSnap.data()?.seeded) {
+      console.log('System already initialized or cleared. Skipping auto-seed.');
+      return;
+    }
+
     // Seed or update settings/auth_config
     await setDoc(doc(db, 'settings', 'auth_config'), {
-      superAdminEmail: 'admin@pdvillas.com',
+      superAdminEmail: 'rishinathsai@gmail.com',
       superAdminPassword: 'admin123',
-      ownerEmail: 'jeff.owner@gmail.com',
+      ownerEmail: 'pdholidayvillas@gmail.com',
       ownerPassword: 'jeff123',
       ownerName: 'Jeff'
     }, { merge: true });
@@ -320,9 +333,34 @@ export async function seedInitialFirestoreData() {
         await setDoc(doc(db, 'bookings', b.id), b);
       }
     }
+
+    // Mark system as seeded so we don't overwrite user changes
+    await setDoc(doc(db, 'settings', 'system_config'), { seeded: true });
   } catch (err) {
     console.warn('Data seeding error:', err);
   }
+}
+
+// Clear all database collections to reset system
+export async function clearAllDatabaseCollections() {
+  const collectionsToClear = ['properties', 'staff', 'bookings', 'notifications', 'activity_logs'];
+  for (const collName of collectionsToClear) {
+    try {
+      const snap = await getDocs(collection(db, collName));
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, collName, d.id));
+      }
+    } catch (err) {
+      console.warn(`Failed to clear collection ${collName}:`, err);
+    }
+  }
+  // Ensure we mark it as seeded (cleared) so it doesn't auto-seed default data
+  await setDoc(doc(db, 'settings', 'system_config'), { seeded: true });
+}
+
+// Reset seeding config to allow rebuilding demo data
+export async function resetSystemConfig() {
+  await setDoc(doc(db, 'settings', 'system_config'), { seeded: false });
 }
 
 // Activity Logging Helper

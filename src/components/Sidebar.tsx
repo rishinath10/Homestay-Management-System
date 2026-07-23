@@ -169,6 +169,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Flutter Mobile App & APK</span>
             </button>
           )}
+
+          {(activeRole === 'super_admin' || activeRole === 'owner') && (
+            <button
+              onClick={() => handleTabClick('settings')}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                activeTab === 'settings' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <Settings className="w-4 h-4 text-slate-600" />
+              <span>Database Settings</span>
+            </button>
+          )}
         </nav>
 
       {/* Mini Calendar Widget */}

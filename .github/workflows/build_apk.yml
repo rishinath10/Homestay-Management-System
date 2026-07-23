@@ -1,0 +1,32 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.x'
+          channel: 'stable'
+          
+      - name: Install Dependencies
+        run: flutter pub get
+        working-directory: flutter_app
+        
+      - name: Build APK
+        run: flutter build apk --release
+        working-directory: flutter_app
+        
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: pd-villas-staff-apk
+          path: flutter_app/build/app/outputs/flutter-apk/app-release.apk

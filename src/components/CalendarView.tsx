@@ -42,6 +42,7 @@ interface CalendarViewProps {
   onSelectBooking: (booking: Booking) => void;
   onCreateBookingAtDate: (dateStr: string, propertyId?: string) => void;
   activeRole: Role;
+  onNavigateDate?: (direction: 'prev' | 'next' | 'today') => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -52,15 +53,66 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   selectedPropertyIds,
   onSelectBooking,
   onCreateBookingAtDate,
-  activeRole
+  activeRole,
+  onNavigateDate
 }) => {
   // Selected date state for inspecting daily bookings (defaults to currentDate)
   const [selectedDateStr, setSelectedDateStr] = useState<string>(format(currentDate, 'yyyy-MM-dd'));
+  const [isMobile, setIsMobile] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   // Update selectedDateStr when currentDate changes
   React.useEffect(() => {
     setSelectedDateStr(format(currentDate, 'yyyy-MM-dd'));
   }, [currentDate]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Month Switch Sliding Animation States
+  const [prevDate, setPrevDate] = useState<Date>(currentDate);
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
+
+  React.useEffect(() => {
+    if (currentDate.getTime() !== prevDate.getTime()) {
+      if (currentDate > prevDate) {
+        setSlideDirection('right');
+      } else {
+        setSlideDirection('left');
+      }
+      setPrevDate(currentDate);
+    }
+  }, [currentDate, prevDate]);
+
+  // Touch Swipe States
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEndX(null);
+    setTouchStartX(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStartX || !touchEndX) return;
+    const distance = touchStartX - touchEndX;
+    const minSwipeDistance = 50; // minimum distance in px to register a swipe
+
+    if (distance > minSwipeDistance && onNavigateDate) {
+      // Swiped Left -> Next Month
+      onNavigateDate('next');
+    } else if (distance < -minSwipeDistance && onNavigateDate) {
+      // Swiped Right -> Prev Month
+      onNavigateDate('prev');
+    }
+  };
 
   // Filter bookings by selected properties
   const filteredBookings = bookings.filter((b) => selectedPropertyIds.includes(b.propertyId));
@@ -99,12 +151,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
 
     return (
-      <div className="flex-1 bg-gray-50 p-2 md:p-4 flex flex-col h-full select-none relative overflow-hidden">
+      <div className="flex-1 bg-gray-50 p-1 md:p-4 flex flex-col min-h-0 select-none relative overflow-hidden">
         {/* Card wrapper */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col overflow-hidden">
-          {/* Horizontal scroll wrapper for small mobile viewports */}
-          <div className="flex-1 overflow-x-auto overflow-y-auto flex flex-col no-scrollbar">
-            <div className="min-w-[768px] sm:min-w-0 flex-1 flex flex-col">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Horizontal scroll wrapper for small mobile viewports (disabled on mobile) */}
+          <div className={`flex-1 flex flex-col no-scrollbar ${isMobile ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}>
+            <div className={`flex-1 flex flex-col ${isMobile ? 'w-full h-full' : 'min-w-[768px] sm:min-w-0'}`}>
             {/* Days of Week Header */}
             <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase text-center py-2.5 shadow-2xs sticky top-0 z-20 tracking-wider">
               <span>SUN</span>
@@ -118,8 +170,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
             {/* Month Grid grouped by Week Rows */}
             <div 
-              className="flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 overflow-y-auto"
-              style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(130px, 1fr))` }}
+              key={currentDate.toISOString()}
+              className={`flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 ${isMobile ? 'overflow-hidden' : 'overflow-y-auto'} ${
+                slideDirection === 'right' ? 'animate-slide-in-right' : slideDirection === 'left' ? 'animate-slide-in-left' : ''
+              }`}
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+              style={{ 
+                gridTemplateRows: isMobile 
+                  ? `repeat(${weeks.length}, 1fr)` 
+                  : `repeat(${weeks.length}, minmax(130px, 1fr))` 
+              }}
             >
           {weeks.map((week, weekIdx) => {
             const weekStartStr = format(week[0], 'yyyy-MM-dd');
@@ -133,7 +195,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             }).sort((a, b) => a.propertyId.localeCompare(b.propertyId) || a.bookingDate.localeCompare(b.bookingDate));
 
             return (
-              <div key={weekIdx} className="relative bg-gray-200 h-full min-h-[130px] overflow-hidden">
+              <div key={weekIdx} className={`relative bg-gray-200 h-full overflow-hidden ${isMobile ? 'min-h-0' : 'min-h-[130px]'}`}>
                 {/* Day Cell Backgrounds (7 columns) */}
                 <div className="grid grid-cols-7 gap-[1px] h-full">
                   {week.map((day) => {
@@ -160,20 +222,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             onCreateBookingAtDate(dateStr);
                           }
                         }}
-                        className={`p-2 flex flex-col justify-between transition-all group cursor-pointer h-full ${
+                        className={`p-1 flex flex-col justify-between transition-all group cursor-pointer h-full ${
                           isSelectedDay
                             ? 'bg-blue-50/90 ring-2 ring-blue-500 z-10'
                             : !isCurrentMonth
-                            ? 'bg-gray-100/60 text-gray-400'
+                            ? 'bg-gray-50/40 text-gray-400'
                             : 'bg-white hover:bg-blue-50/30'
                         }`}
                       >
                         {/* Day Cell Header */}
-                        <div className="w-full flex justify-center py-0.5 z-20 relative">
+                        <div className="w-full flex justify-between items-center py-0.5 px-0.5 z-20 relative">
                           <span
-                            className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            className={`text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded-full ${
                               isToday
-                                ? 'bg-blue-600 text-white shadow-xs'
+                                ? 'bg-blue-600 text-white shadow-xs font-extrabold'
                                 : isSelectedDay
                                 ? 'bg-blue-100 text-blue-900 font-extrabold'
                                 : isCurrentMonth
@@ -184,90 +246,114 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             {format(day, 'd') === '1' ? format(day, 'd MMM') : format(day, 'd')}
                           </span>
 
-                          {dayBookings.length > 1 && (
+                          {!isMobile && dayBookings.length > 1 && (
                             <span className="absolute top-0.5 right-1.5 px-1 py-0.2 bg-purple-50/80 text-purple-700 border border-purple-100 font-extrabold text-[9px] rounded-full flex items-center shrink-0">
                               <span>{dayBookings.length}</span>
                             </span>
                           )}
                         </div>
+
+                        {/* Booking representation on mobile (colored dots) */}
+                        {isMobile && (
+                          <div className="flex-1 flex items-end justify-center pb-1">
+                            <div className="flex flex-wrap gap-0.5 justify-center max-w-full">
+                              {dayBookings.slice(0, 4).map((b) => {
+                                const prop = propertyMap.get(b.propertyId);
+                                return (
+                                  <div 
+                                    key={b.id} 
+                                    className="w-1.5 h-1.5 rounded-full border border-black/10 shrink-0"
+                                    style={{ backgroundColor: prop?.color || '#1a73e8' }}
+                                    title={`${b.guestName} (${prop?.code})`}
+                                  />
+                                );
+                              })}
+                              {dayBookings.length > 4 && (
+                                <span className="text-[7px] font-extrabold text-blue-600 leading-none">+</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
-                {/* Overlaid Continuous Booking Bars Layer (7 columns) */}
-                <div className="absolute top-6 left-0 right-0 bottom-0.5 px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[1px] gap-y-0.5 overflow-hidden">
-                  {weekBookings.map((booking) => {
-                    const prop = propertyMap.get(booking.propertyId);
-                    const color = prop?.color || '#1a73e8';
+                {/* Overlaid Continuous Booking Bars Layer (7 columns) - Desktop Only */}
+                {!isMobile && (
+                  <div className="absolute top-6 left-0 right-0 bottom-0.5 px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[1px] gap-y-0.5 overflow-hidden">
+                    {weekBookings.map((booking) => {
+                      const prop = propertyMap.get(booking.propertyId);
+                      const color = prop?.color || '#1a73e8';
 
-                    const bStart = booking.bookingDate;
-                    const bEnd = booking.endDate || booking.bookingDate;
+                      const bStart = booking.bookingDate;
+                      const bEnd = booking.endDate || booking.bookingDate;
 
-                    let startCol = 1;
-                    if (bStart >= weekStartStr) {
-                      startCol = getDay(parseISO(bStart)) + 1;
-                    }
-
-                    let endCol = 8;
-                    if (bEnd <= weekEndStr) {
-                      if (bEnd === bStart) {
-                        endCol = startCol + 1;
-                      } else {
-                        const endDayIdx = getDay(parseISO(bEnd));
-                        endCol = Math.max(startCol + 1, endDayIdx + 1);
+                      let startCol = 1;
+                      if (bStart >= weekStartStr) {
+                        startCol = getDay(parseISO(bStart)) + 1;
                       }
-                    }
 
-                    const isStartInWeek = bStart >= weekStartStr;
-                    const isEndInWeek = bEnd <= weekEndStr;
-                    const isMultiDay = bEnd > bStart;
+                      let endCol = 8;
+                      if (bEnd <= weekEndStr) {
+                        if (bEnd === bStart) {
+                          endCol = startCol + 1;
+                        } else {
+                          const endDayIdx = getDay(parseISO(bEnd));
+                          endCol = Math.max(startCol + 1, endDayIdx + 1);
+                        }
+                      }
 
-                    let nights = 1;
-                    if (isMultiDay) {
-                      nights = differenceInDays(parseISO(bEnd), parseISO(bStart));
-                    }
+                      const isStartInWeek = bStart >= weekStartStr;
+                      const isEndInWeek = bEnd <= weekEndStr;
+                      const isMultiDay = bEnd > bStart;
 
-                    return (
-                      <div
-                        key={booking.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedDateStr(bStart >= weekStartStr ? bStart : weekStartStr);
-                          onSelectBooking(booking);
-                        }}
-                        style={{
-                          gridColumnStart: startCol,
-                          gridColumnEnd: endCol,
-                          backgroundColor: color,
-                        }}
-                        className={`pointer-events-auto h-4.5 px-1.5 text-[9px] text-white font-extrabold flex items-center justify-between cursor-pointer hover:opacity-95 transition-all truncate leading-none rounded-md shadow-xs ${
-                          isStartInWeek ? 'rounded-l-md' : 'rounded-l-none'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-1 truncate leading-none">
-                          {!isStartInWeek && (
-                            <span className="text-[9px] opacity-80 font-mono">‹</span>
-                          )}
-                          <span className="truncate">
-                            {booking.guestName || 'Guest'} [{booking.channel || 'Direct'}] {prop?.code || booking.propertyName || 'Villa'}
-                          </span>
-                        </div>
+                      let nights = 1;
+                      if (isMultiDay) {
+                        nights = differenceInDays(parseISO(bEnd), parseISO(bStart));
+                      }
 
-                        <div className="flex items-center space-x-0.5 shrink-0 ml-1 leading-none">
-                          {isMultiDay && isStartInWeek && (
-                            <span className="text-[7.5px] bg-black/25 px-1 rounded font-mono font-bold shrink-0">
-                              {nights}N
+                      return (
+                        <div
+                          key={booking.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDateStr(bStart >= weekStartStr ? bStart : weekStartStr);
+                            onSelectBooking(booking);
+                          }}
+                          style={{
+                            gridColumnStart: startCol,
+                            gridColumnEnd: endCol,
+                            backgroundColor: color,
+                          }}
+                          className={`pointer-events-auto h-4.5 px-1.5 text-[9px] text-white font-extrabold flex items-center justify-between cursor-pointer hover:opacity-95 transition-all truncate leading-none rounded-md shadow-xs ${
+                            isStartInWeek ? 'rounded-l-md' : 'rounded-l-none'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-1 truncate leading-none">
+                            {!isStartInWeek && (
+                              <span className="text-[9px] opacity-80 font-mono">‹</span>
+                            )}
+                            <span className="truncate">
+                              {booking.guestName || 'Guest'} [{booking.channel || 'Direct'}] {prop?.code || booking.propertyName || 'Villa'}
                             </span>
-                          )}
-                          {!isEndInWeek && (
-                            <span className="text-[9px] opacity-85 font-mono">›</span>
-                          )}
+                          </div>
+
+                          <div className="flex items-center space-x-0.5 shrink-0 ml-1 leading-none">
+                            {isMultiDay && isStartInWeek && (
+                              <span className="text-[7.5px] bg-black/25 px-1 rounded font-mono font-bold shrink-0">
+                                {nights}N
+                              </span>
+                            )}
+                            {!isEndInWeek && (
+                              <span className="text-[9px] opacity-85 font-mono">›</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
