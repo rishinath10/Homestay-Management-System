@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Property, Staff, Role } from '../types';
 import { 
   Home, MapPin, Users, Bed, Calendar, ShieldCheck, 
-  Plus, Edit, Trash2, X, Save, Image, Tag, Compass, AlertCircle 
+  Plus, Edit, Trash2, X, Save, Image, Tag, Compass, AlertCircle, Lock 
 } from 'lucide-react';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, logActivity } from '../lib/firebase';
