@@ -26,7 +26,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   initialDate,
   initialPropertyId
 }) => {
-  const visibleProperties = activeRole === 'admin'
+  const visibleProperties = (activeRole === 'super_admin' || activeRole === 'owner')
     ? properties
     : properties.filter(p => activeStaff?.assignedPropertyIds.includes(p.id));
 
@@ -50,14 +50,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
 
   React.useEffect(() => {
-    if (initialDate) {
-      setBookingDate(initialDate);
-      setEndDate(initialDate);
+    if (isOpen) {
+      if (initialDate) {
+        setBookingDate(initialDate);
+        setEndDate(initialDate);
+      } else {
+        setBookingDate(format(new Date(), 'yyyy-MM-dd'));
+        setEndDate(format(new Date(), 'yyyy-MM-dd'));
+      }
+      setPropertyId(initialPropertyId || visibleProperties[0]?.id || '');
     }
-    if (initialPropertyId) {
-      setPropertyId(initialPropertyId);
-    }
-  }, [initialDate, initialPropertyId]);
+  }, [isOpen, initialDate, initialPropertyId, visibleProperties]);
 
   if (!isOpen) return null;
 
