@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "properties": {
+      "title": "Property",
+      "description": "Homestay properties in Port Dickson",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "address": { "type": "string" },
+        "description": { "type": "string" },
+        "color": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "bedrooms": { "type": "number" },
+        "maxGuests": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "code", "address", "color"]
+    },
+    "staff": {
+      "title": "Staff Member",
+      "description": "Staff managing assigned homestays",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "staff"] },
+        "assignedPropertyIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "avatarUrl": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "role", "assignedPropertyIds"]
+    },
+    "bookings": {
+      "title": "Booking",
+      "description": "Booking records for homestays",
+      "type": "object",
+      "properties": {
+        "propertyId": { "type": "string" },
+        "propertyName": { "type": "string" },
+        "bookingDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "checkinTime": { "type": "string" },
+        "checkoutTime": { "type": "string" },
+        "guestName": { "type": "string" },
+        "guestPhone": { "type": "string" },
+        "guestEmail": { "type": "string" },
+        "remarks": { "type": "string" },
+        "assignedStaffId": { "type": "string" },
+        "status": { "type": "string", "enum": ["confirmed", "pending", "cancelled"] },
+        "amount": { "type": "number" },
+        "channel": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["propertyId", "bookingDate", "checkinTime", "status"]
+    },
+    "notifications": {
+      "title": "Notification Log",
+      "description": "Audit trail of sent notifications",
+      "type": "object",
+      "properties": {
+        "staffId": { "type": "string" },
+        "staffName": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "message": { "type": "string" },
+        "channel": { "type": "string", "enum": ["whatsapp", "fcm_push", "in_app"] },
+        "status": { "type": "string", "enum": ["sent", "failed", "pending"] },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["message", "channel", "timestamp"]
+    }
+  }
+}
