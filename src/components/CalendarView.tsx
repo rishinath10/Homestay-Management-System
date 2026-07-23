@@ -118,8 +118,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
             {/* Month Grid grouped by Week Rows */}
             <div 
-              className="flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 overflow-hidden"
-              style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}
+              className="flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 overflow-y-auto"
+              style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(130px, 1fr))` }}
             >
           {weeks.map((week, weekIdx) => {
             const weekStartStr = format(week[0], 'yyyy-MM-dd');
@@ -133,7 +133,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             }).sort((a, b) => a.propertyId.localeCompare(b.propertyId) || a.bookingDate.localeCompare(b.bookingDate));
 
             return (
-              <div key={weekIdx} className="relative bg-gray-200 h-full overflow-hidden">
+              <div key={weekIdx} className="relative bg-gray-200 h-full min-h-[130px] overflow-hidden">
                 {/* Day Cell Backgrounds (7 columns) */}
                 <div className="grid grid-cols-7 gap-[1px] h-full">
                   {week.map((day) => {
@@ -169,7 +169,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         }`}
                       >
                         {/* Day Cell Header */}
-                        <div className="w-full flex justify-center py-1 z-20 relative">
+                        <div className="w-full flex justify-center py-0.5 z-20 relative">
                           <span
                             className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                               isToday
@@ -185,7 +185,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           </span>
 
                           {dayBookings.length > 1 && (
-                            <span className="absolute top-1.5 right-2 px-1 py-0.2 bg-purple-50/80 text-purple-700 border border-purple-100 font-extrabold text-[9px] rounded-full flex items-center shrink-0">
+                            <span className="absolute top-0.5 right-1.5 px-1 py-0.2 bg-purple-50/80 text-purple-700 border border-purple-100 font-extrabold text-[9px] rounded-full flex items-center shrink-0">
                               <span>{dayBookings.length}</span>
                             </span>
                           )}
@@ -196,7 +196,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
 
                 {/* Overlaid Continuous Booking Bars Layer (7 columns) */}
-                <div className="absolute top-8 left-0 right-0 bottom-0.5 px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[1px] gap-y-0.5 overflow-hidden">
+                <div className="absolute top-6 left-0 right-0 bottom-0.5 px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[1px] gap-y-0.5 overflow-hidden">
                   {weekBookings.map((booking) => {
                     const prop = propertyMap.get(booking.propertyId);
                     const color = prop?.color || '#1a73e8';
@@ -239,11 +239,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         style={{
                           gridColumnStart: startCol,
                           gridColumnEnd: endCol,
-                          backgroundColor: color + '22',
-                          borderLeft: `3px solid ${color}`,
-                          color: color,
+                          backgroundColor: color,
                         }}
-                        className={`pointer-events-auto h-4.5 px-1 text-[9px] font-bold flex items-center justify-between cursor-pointer hover:opacity-95 transition-all truncate leading-none rounded-r-md ${
+                        className={`pointer-events-auto h-4.5 px-1.5 text-[9px] text-white font-extrabold flex items-center justify-between cursor-pointer hover:opacity-95 transition-all truncate leading-none rounded-md shadow-xs ${
                           isStartInWeek ? 'rounded-l-md' : 'rounded-l-none'
                         }`}
                       >
@@ -258,7 +256,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                         <div className="flex items-center space-x-0.5 shrink-0 ml-1 leading-none">
                           {isMultiDay && isStartInWeek && (
-                            <span className="text-[7.5px] bg-black/10 px-1 rounded font-mono font-bold shrink-0">
+                            <span className="text-[7.5px] bg-black/25 px-1 rounded font-mono font-bold shrink-0">
                               {nights}N
                             </span>
                           )}
