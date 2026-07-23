@@ -117,7 +117,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
 
             {/* Month Grid grouped by Week Rows */}
-            <div className="flex-1 overflow-y-auto space-y-[1px] bg-gray-200 border-b border-gray-200">
+            <div 
+              className="flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 overflow-hidden"
+              style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}
+            >
           {weeks.map((week, weekIdx) => {
             const weekStartStr = format(week[0], 'yyyy-MM-dd');
             const weekEndStr = format(week[6], 'yyyy-MM-dd');
@@ -130,9 +133,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             }).sort((a, b) => a.propertyId.localeCompare(b.propertyId) || a.bookingDate.localeCompare(b.bookingDate));
 
             return (
-              <div key={weekIdx} className="relative bg-gray-200 min-h-[240px]">
+              <div key={weekIdx} className="relative bg-gray-200 h-full overflow-hidden">
                 {/* Day Cell Backgrounds (7 columns) */}
-                <div className="grid grid-cols-7 gap-[1px] h-full min-h-[240px]">
+                <div className="grid grid-cols-7 gap-[1px] h-full">
                   {week.map((day) => {
                     const dateStr = format(day, 'yyyy-MM-dd');
                     const isCurrentMonth = isSameMonth(day, currentDate);
@@ -151,8 +154,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     return (
                       <div
                         key={dateStr}
-                        onClick={() => setSelectedDateStr(dateStr)}
-                        className={`p-2 flex flex-col justify-between transition-all group cursor-pointer min-h-[240px] ${
+                        onClick={() => {
+                          setSelectedDateStr(dateStr);
+                          if (activeRole !== 'staff') {
+                            onCreateBookingAtDate(dateStr);
+                          }
+                        }}
+                        className={`p-2 flex flex-col justify-between transition-all group cursor-pointer h-full ${
                           isSelectedDay
                             ? 'bg-blue-50/90 ring-2 ring-blue-500 z-10'
                             : !isCurrentMonth
@@ -204,7 +212,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
 
                 {/* Overlaid Continuous Booking Bars Layer (7 columns) */}
-                <div className="absolute top-10 left-0 right-0 bottom-1 px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[1px] gap-y-1 overflow-y-auto max-h-[195px]">
+                <div className="absolute top-9 left-0 right-0 bottom-1 px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[1px] gap-y-0.5 overflow-hidden">
                   {weekBookings.map((booking) => {
                     const prop = propertyMap.get(booking.propertyId);
                     const color = prop?.color || '#1a73e8';
@@ -249,7 +257,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           gridColumnEnd: endCol,
                           backgroundColor: color,
                         }}
-                        className={`pointer-events-auto h-7 px-2 text-[11px] text-white shadow-2xs flex items-center justify-between font-medium cursor-pointer hover:opacity-95 transition-all truncate ${
+                        className={`pointer-events-auto h-6 px-1.5 text-[10px] text-white shadow-2xs flex items-center justify-between font-semibold cursor-pointer hover:opacity-95 transition-all truncate ${
                           isStartInWeek ? 'rounded-l-md' : 'rounded-l-none border-l-2 border-white/40'
                         } ${
                           isEndInWeek ? 'rounded-r-md' : 'rounded-r-none border-r-2 border-white/40'
