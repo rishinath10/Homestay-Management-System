@@ -327,10 +327,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             <button
               type="submit"
               disabled={isSaving}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md flex items-center space-x-2 disabled:opacity-50"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md flex items-center space-x-2 disabled:opacity-50"
             >
               <Send className="w-4 h-4" />
-              <span>{isSaving ? 'Saving...' : 'Save & Trigger WhatsApp Notif'}</span>
+              <span>{isSaving ? 'SAVING...' : 'SUBMIT'}</span>
             </button>
           </div>
         </form>
