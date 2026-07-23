@@ -99,9 +99,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
 
     return (
-      <div className="flex-1 bg-gray-50 p-4 md:p-6 lg:p-8 flex flex-col h-full select-none relative overflow-hidden">
+      <div className="flex-1 bg-gray-50 p-2 md:p-4 flex flex-col h-full select-none relative overflow-hidden">
         {/* Card wrapper */}
-        <div className="bg-white rounded-3xl border border-gray-200 shadow-sm flex-1 flex flex-col overflow-hidden">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col overflow-hidden">
           {/* Horizontal scroll wrapper for small mobile viewports */}
           <div className="flex-1 overflow-x-auto overflow-y-auto flex flex-col no-scrollbar">
             <div className="min-w-[768px] sm:min-w-0 flex-1 flex flex-col">
@@ -169,41 +169,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         }`}
                       >
                         {/* Day Cell Header */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-1.5">
-                            <span
-                              className={`text-xs font-bold h-6 w-6 rounded-full flex items-center justify-center ${
-                                isToday
-                                  ? 'bg-blue-600 text-white shadow-xs'
-                                  : isSelectedDay
-                                  ? 'bg-blue-100 text-blue-900 font-extrabold'
-                                  : isCurrentMonth
-                                  ? 'text-gray-800'
-                                  : 'text-gray-400'
-                              }`}
-                            >
-                              {format(day, 'd')}
+                        <div className="absolute top-1.5 left-1.5 flex items-center space-x-1 z-20">
+                          <span
+                            className={`text-[10px] font-extrabold h-5 w-5 rounded-full flex items-center justify-center ${
+                              isToday
+                                ? 'bg-blue-600 text-white shadow-xs'
+                                : isSelectedDay
+                                ? 'bg-blue-100 text-blue-900 font-black'
+                                : isCurrentMonth
+                                ? 'text-gray-800'
+                                : 'text-gray-400'
+                            }`}
+                          >
+                            {format(day, 'd')}
+                          </span>
+
+                          {dayBookings.length > 1 && (
+                            <span className="px-1 py-0.2 bg-purple-50/80 text-purple-700 border border-purple-100 font-extrabold text-[9px] rounded-full flex items-center shrink-0">
+                              <span>{dayBookings.length}</span>
                             </span>
-
-                            {dayBookings.length > 1 && (
-                              <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 font-extrabold text-[10px] rounded-full flex items-center space-x-0.5">
-                                <Layers className="w-2.5 h-2.5 text-purple-600" />
-                                <span>{dayBookings.length}</span>
-                              </span>
-                            )}
-                          </div>
-
-                          {activeRole !== 'staff' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onCreateBookingAtDate(dateStr);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 text-gray-600 rounded-full transition-opacity"
-                              title="Add Booking on this date"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
                           )}
                         </div>
                       </div>
@@ -212,7 +196,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
 
                 {/* Overlaid Continuous Booking Bars Layer (7 columns) */}
-                <div className="absolute top-9 left-0 right-0 bottom-1 px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[1px] gap-y-0.5 overflow-hidden">
+                <div className="absolute top-7 left-0 right-0 bottom-0.5 px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[1px] gap-y-0.5 overflow-hidden">
                   {weekBookings.map((booking) => {
                     const prop = propertyMap.get(booking.propertyId);
                     const color = prop?.color || '#1a73e8';
@@ -257,35 +241,35 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           gridColumnEnd: endCol,
                           backgroundColor: color,
                         }}
-                        className={`pointer-events-auto h-6 px-1.5 text-[10px] text-white shadow-2xs flex items-center justify-between font-semibold cursor-pointer hover:opacity-95 transition-all truncate ${
-                          isStartInWeek ? 'rounded-l-md' : 'rounded-l-none border-l-2 border-white/40'
+                        className={`pointer-events-auto h-4 px-1 text-[8.5px] text-white shadow-2xs flex items-center justify-between font-bold cursor-pointer hover:opacity-95 transition-all truncate leading-none ${
+                          isStartInWeek ? 'rounded-md' : 'rounded-l-none border-l-2 border-white/40'
                         } ${
-                          isEndInWeek ? 'rounded-r-md' : 'rounded-r-none border-r-2 border-white/40'
+                          isEndInWeek ? 'rounded-md' : 'rounded-r-none border-r-2 border-white/40'
                         }`}
                       >
-                        <div className="flex items-center space-x-1.5 truncate">
+                        <div className="flex items-center space-x-1 truncate leading-none">
                           {!isStartInWeek && (
-                            <span className="text-[10px] opacity-80 font-mono">‹</span>
+                            <span className="text-[9px] opacity-80 font-mono">‹</span>
                           )}
-                          <span className="font-bold truncate max-w-[110px]">
-                            {booking.propertyName || prop?.name}
+                          <span className="font-extrabold truncate">
+                            {prop?.code || booking.propertyName || 'Villa'}
                           </span>
-                          <span className="opacity-90 font-semibold truncate max-w-[90px]">
+                          <span className="opacity-90 font-medium truncate">
                             • {booking.guestName || 'Guest'}
                           </span>
-                          {isMultiDay && isStartInWeek && (
-                            <span className="text-[9px] bg-black/25 px-1.5 py-0.2 rounded font-mono font-bold shrink-0">
-                              {nights} {nights === 1 ? 'night' : 'nights'}
-                            </span>
-                          )}
                         </div>
 
-                        <div className="flex items-center space-x-1 shrink-0 ml-1">
-                          <span className="text-[9px] bg-black/25 px-1.5 py-0.5 rounded font-semibold">
+                        <div className="flex items-center space-x-0.5 shrink-0 ml-1 leading-none">
+                          {isMultiDay && isStartInWeek && (
+                            <span className="text-[7.5px] bg-black/25 px-1 rounded font-mono font-bold shrink-0">
+                              {nights}N
+                            </span>
+                          )}
+                          <span className="text-[7.5px] bg-black/25 px-1 rounded font-medium">
                             {booking.channel || 'Direct'}
                           </span>
                           {!isEndInWeek && (
-                            <span className="text-[10px] opacity-80 font-mono">›</span>
+                            <span className="text-[9px] opacity-80 font-mono">›</span>
                           )}
                         </div>
                       </div>
