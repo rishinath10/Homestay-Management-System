@@ -106,7 +106,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <div className="flex-1 overflow-x-auto overflow-y-auto flex flex-col no-scrollbar">
             <div className="min-w-[768px] sm:min-w-0 flex-1 flex flex-col">
             {/* Days of Week Header */}
-            <div className="grid grid-cols-7 border-b border-gray-200 bg-white text-xs font-bold text-gray-500 text-center py-2.5 shadow-2xs sticky top-0 z-20">
+            <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase text-center py-2.5 shadow-2xs sticky top-0 z-20 tracking-wider">
               <span>SUN</span>
               <span>MON</span>
               <span>TUE</span>
@@ -169,23 +169,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         }`}
                       >
                         {/* Day Cell Header */}
-                        <div className="absolute top-1.5 left-1.5 flex items-center space-x-1 z-20">
+                        <div className="w-full flex justify-center py-1 z-20 relative">
                           <span
-                            className={`text-[10px] font-extrabold h-5 w-5 rounded-full flex items-center justify-center ${
+                            className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                               isToday
                                 ? 'bg-blue-600 text-white shadow-xs'
                                 : isSelectedDay
-                                ? 'bg-blue-100 text-blue-900 font-black'
+                                ? 'bg-blue-100 text-blue-900 font-extrabold'
                                 : isCurrentMonth
                                 ? 'text-gray-800'
                                 : 'text-gray-400'
                             }`}
                           >
-                            {format(day, 'd')}
+                            {format(day, 'd') === '1' ? format(day, 'd MMM') : format(day, 'd')}
                           </span>
 
                           {dayBookings.length > 1 && (
-                            <span className="px-1 py-0.2 bg-purple-50/80 text-purple-700 border border-purple-100 font-extrabold text-[9px] rounded-full flex items-center shrink-0">
+                            <span className="absolute top-1.5 right-2 px-1 py-0.2 bg-purple-50/80 text-purple-700 border border-purple-100 font-extrabold text-[9px] rounded-full flex items-center shrink-0">
                               <span>{dayBookings.length}</span>
                             </span>
                           )}
@@ -196,7 +196,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
 
                 {/* Overlaid Continuous Booking Bars Layer (7 columns) */}
-                <div className="absolute top-7 left-0 right-0 bottom-0.5 px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[1px] gap-y-0.5 overflow-hidden">
+                <div className="absolute top-8 left-0 right-0 bottom-0.5 px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[1px] gap-y-0.5 overflow-hidden">
                   {weekBookings.map((booking) => {
                     const prop = propertyMap.get(booking.propertyId);
                     const color = prop?.color || '#1a73e8';
@@ -239,37 +239,31 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         style={{
                           gridColumnStart: startCol,
                           gridColumnEnd: endCol,
-                          backgroundColor: color,
+                          backgroundColor: color + '22',
+                          borderLeft: `3px solid ${color}`,
+                          color: color,
                         }}
-                        className={`pointer-events-auto h-4 px-1 text-[8.5px] text-white shadow-2xs flex items-center justify-between font-bold cursor-pointer hover:opacity-95 transition-all truncate leading-none ${
-                          isStartInWeek ? 'rounded-md' : 'rounded-l-none border-l-2 border-white/40'
-                        } ${
-                          isEndInWeek ? 'rounded-md' : 'rounded-r-none border-r-2 border-white/40'
+                        className={`pointer-events-auto h-4.5 px-1 text-[9px] font-bold flex items-center justify-between cursor-pointer hover:opacity-95 transition-all truncate leading-none rounded-r-md ${
+                          isStartInWeek ? 'rounded-l-md' : 'rounded-l-none'
                         }`}
                       >
                         <div className="flex items-center space-x-1 truncate leading-none">
                           {!isStartInWeek && (
                             <span className="text-[9px] opacity-80 font-mono">‹</span>
                           )}
-                          <span className="font-extrabold truncate">
-                            {prop?.code || booking.propertyName || 'Villa'}
-                          </span>
-                          <span className="opacity-90 font-medium truncate">
-                            • {booking.guestName || 'Guest'}
+                          <span className="truncate">
+                            {booking.guestName || 'Guest'} [{booking.channel || 'Direct'}] {prop?.code || booking.propertyName || 'Villa'}
                           </span>
                         </div>
 
                         <div className="flex items-center space-x-0.5 shrink-0 ml-1 leading-none">
                           {isMultiDay && isStartInWeek && (
-                            <span className="text-[7.5px] bg-black/25 px-1 rounded font-mono font-bold shrink-0">
+                            <span className="text-[7.5px] bg-black/10 px-1 rounded font-mono font-bold shrink-0">
                               {nights}N
                             </span>
                           )}
-                          <span className="text-[7.5px] bg-black/25 px-1 rounded font-medium">
-                            {booking.channel || 'Direct'}
-                          </span>
                           {!isEndInWeek && (
-                            <span className="text-[9px] opacity-80 font-mono">›</span>
+                            <span className="text-[9px] opacity-85 font-mono">›</span>
                           )}
                         </div>
                       </div>
