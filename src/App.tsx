@@ -217,6 +217,63 @@ export default function App() {
       createdByRole: bookingData.createdByRole || activeRole
     };
 
+    // Validate Booking Clash / Double Booking
+    const hasClash = bookings.some(b => {
+      if (b.id === bookingId) return false;
+      if (b.propertyId !== newBooking.propertyId) return false;
+      if (b.status === 'cancelled') return false;
+
+      const bStart = b.bookingDate;
+      const bEnd = b.endDate || b.bookingDate;
+      const newStart = newBooking.bookingDate;
+      const newEnd = newBooking.endDate || newBooking.bookingDate;
+
+      return (newStart < bEnd && newEnd > bStart);
+    });
+
+    if (hasClash) {
+      const clashingBooking = bookings.find(b => {
+        if (b.id === bookingId) return false;
+        if (b.propertyId !== newBooking.propertyId) return false;
+        if (b.status === 'cancelled') return false;
+        const bStart = b.bookingDate;
+        const bEnd = b.endDate || b.bookingDate;
+        const newStart = newBooking.bookingDate;
+        const newEnd = newBooking.endDate || newBooking.bookingDate;
+        return (newStart < bEnd && newEnd > bStart);
+      });
+
+      const clashMsg = `⚠️ DOUBLE BOOKING CLASH! This villa is already reserved from ${clashingBooking?.bookingDate} to ${clashingBooking?.endDate || clashingBooking?.bookingDate} by ${clashingBooking?.guestName || 'another guest'}.`;
+      alert(clashMsg);
+
+      // Create a warning notification in Firestore for host/admin alerts
+      try {
+        const notifId = `notif-${Date.now()}`;
+        await setDoc(doc(db, 'notifications', notifId), {
+          id: notifId,
+          type: 'double_booking_blocked',
+          title: 'Blocked Booking Clash Alert',
+          message: `Double booking attempt blocked for property "${newBooking.propertyName || 'Villa'}" by user ${sessionUser?.email || 'unknown'}. Attempted Date Range: ${newBooking.bookingDate} to ${newBooking.endDate || newBooking.bookingDate}. Clashing Guest: ${clashingBooking?.guestName || 'Unknown'}.`,
+          timestamp: new Date().toISOString(),
+          status: 'unread',
+          propertyId: newBooking.propertyId
+        });
+      } catch (e) {
+        console.error('Failed to create clash notification:', e);
+      }
+
+      // Log Warning Activity
+      await logActivity(
+        sessionUser?.email || 'unknown',
+        sessionUser?.name || 'Unknown',
+        activeRole,
+        'Booking Clash Attempt Blocked',
+        `Attempted Booking Date Range: ${newBooking.bookingDate} to ${newBooking.endDate || newBooking.bookingDate} for Guest: ${newBooking.guestName} on property: ${newBooking.propertyName}`
+      );
+
+      throw new Error('Booking clash detected.');
+    }
+
     // Save to Firestore
     await setDoc(doc(db, 'bookings', bookingId), newBooking);
 
