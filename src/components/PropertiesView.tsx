@@ -281,8 +281,8 @@ export const PropertiesView: React.FC<PropertiesViewProps> = ({
 
         {/* Add/Edit Modal Form Popup */}
         {isFormOpen && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]">
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh] animate-zoom-in">
               {/* Modal Header */}
               <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
                 <div className="flex items-center space-x-2">

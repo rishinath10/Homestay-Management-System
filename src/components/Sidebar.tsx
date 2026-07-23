@@ -52,8 +52,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [miniCalMonth, setMiniCalMonth] = React.useState(currentDate);
 
-  if (!isOpen) return null;
-
   const handleTabClick = (tab: 'calendar' | 'properties' | 'staff' | 'ical' | 'notifications' | 'flutter' | 'settings') => {
     onSelectTab(tab);
     if (onCloseSidebar && window.innerWidth < 768) {
@@ -75,11 +73,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Mobile Backdrop Overlay */}
       <div 
-        className="fixed inset-0 bg-black/40 backdrop-blur-xs z-30 md:hidden"
+        className={`fixed inset-0 bg-black/40 backdrop-blur-xs z-30 md:hidden transition-opacity duration-300 ${
+          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
         onClick={onCloseSidebar}
       />
 
-      <aside className="fixed md:static inset-y-0 left-0 z-40 w-72 md:w-64 bg-white border-r border-gray-200 h-full md:h-[calc(100vh-4rem)] overflow-y-auto flex flex-col p-4 shrink-0 transition-all select-none shadow-xl md:shadow-none">
+      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 md:w-64 bg-white border-r border-gray-200 h-full md:h-[calc(100vh-4rem)] overflow-y-auto flex flex-col p-4 shrink-0 transition-transform duration-300 ease-in-out select-none shadow-xl md:shadow-none ${
+        isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      }`}>
         {/* Create Booking FAB (Only for Super Admin and Owner) */}
         {(activeRole === 'super_admin' || activeRole === 'owner') && (
           <button

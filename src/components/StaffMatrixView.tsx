@@ -185,7 +185,7 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
 
         {/* Add Staff Collapsible Form */}
         {isAddingStaff && isSuperAdmin && (
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4 animate-in slide-in-from-top duration-200">
+          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4 animate-slide-down">
             <h2 className="text-sm font-bold text-gray-800 flex items-center space-x-1.5 border-b border-gray-100 pb-2">
               <UserCheck className="w-4 h-4 text-purple-600" />
               <span>Register New Staff Account</span>
