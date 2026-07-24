@@ -235,11 +235,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const renderMonthGrid = (mWeeks: Date[][], mDate: Date) => {
       return (
         <div 
-          className={`w-full flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 ${isMobile ? 'overflow-hidden' : 'overflow-y-auto'}`}
+          className="w-full flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 overflow-hidden"
           style={{ 
-            gridTemplateRows: isMobile 
-              ? `repeat(${mWeeks.length}, 1fr)` 
-              : `repeat(${mWeeks.length}, minmax(130px, 1fr))` 
+            gridTemplateRows: `repeat(${mWeeks.length}, 1fr)`
           }}
         >
           {mWeeks.map((week, weekIdx) => {
@@ -425,7 +423,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         {/* Card wrapper */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* Horizontal scroll wrapper for small mobile viewports (disabled on mobile) */}
-          <div className={`flex-1 flex flex-col no-scrollbar ${isMobile ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}>
+          <div className="flex-1 flex flex-col no-scrollbar overflow-hidden">
             <div className={`flex-1 flex flex-col ${isMobile ? 'w-full h-full' : 'min-w-[768px] sm:min-w-0'}`}>
             {/* Days of Week Header */}
             <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase text-center py-2.5 shadow-2xs sticky top-0 z-20 tracking-wider">
