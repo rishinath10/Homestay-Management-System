@@ -148,33 +148,48 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const lastWheelTime = React.useRef<number>(0);
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (viewMode !== 'month' || isTransitioning) return;
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    const now = Date.now();
-    if (now - lastWheelTime.current < 800) {
-      return; // Rate limit wheel transitions
-    }
+    const handleWheelRaw = (e: WheelEvent) => {
+      if (viewMode !== 'month') return;
 
-    const threshold = 30; // Ignore tiny scroll events
-    if (Math.abs(e.deltaY) < threshold) return;
+      const threshold = 30; // Ignore tiny scroll events
+      if (Math.abs(e.deltaY) < threshold) return;
 
-    if (e.deltaY > 0 && onNavigateDate) {
-      // Scroll Down -> Next Month
-      lastWheelTime.current = now;
-      setUseTransition(true);
-      setSlideOffset(-66.666);
-      setIsTransitioning(true);
-      onNavigateDate('next');
-    } else if (e.deltaY < 0 && onNavigateDate) {
-      // Scroll Up -> Prev Month
-      lastWheelTime.current = now;
-      setUseTransition(true);
-      setSlideOffset(0);
-      setIsTransitioning(true);
-      onNavigateDate('prev');
-    }
-  };
+      // Always prevent vertical scrolling in month view to let the months slide left/right smoothly
+      e.preventDefault();
+
+      if (isTransitioning) return;
+
+      const now = Date.now();
+      if (now - lastWheelTime.current < 800) {
+        return; // Rate limit wheel transitions
+      }
+
+      if (e.deltaY > 0 && onNavigateDate) {
+        // Scroll Down -> Next Month
+        lastWheelTime.current = now;
+        setUseTransition(true);
+        setSlideOffset(-66.666);
+        setIsTransitioning(true);
+        onNavigateDate('next');
+      } else if (e.deltaY < 0 && onNavigateDate) {
+        // Scroll Up -> Prev Month
+        lastWheelTime.current = now;
+        setUseTransition(true);
+        setSlideOffset(0);
+        setIsTransitioning(true);
+        onNavigateDate('prev');
+      }
+    };
+
+    container.addEventListener('wheel', handleWheelRaw, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheelRaw);
+    };
+  }, [viewMode, isTransitioning, onNavigateDate]);
 
   // Filter bookings by selected properties
   const filteredBookings = bookings.filter((b) => selectedPropertyIds.includes(b.propertyId));
@@ -424,7 +439,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
 
             {/* Sliding months viewport container */}
-            <div ref={containerRef} className="overflow-hidden flex-1 relative min-h-0 w-full" onWheel={handleWheel}>
+            <div ref={containerRef} className="overflow-hidden flex-1 relative min-h-0 w-full">
               <div
                 className="flex flex-row h-full w-[300%]"
                 style={{
