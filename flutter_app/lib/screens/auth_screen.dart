@@ -15,7 +15,8 @@ class _AuthScreenState extends State<AuthScreen> {
   String? _error;
 
   Future<void> _handleLogin() async {
-    if (_emailController.text.trim().isEmpty || _passwordController.text.trim().isEmpty) {
+    if (_emailController.text.trim().isEmpty ||
+        _passwordController.text.trim().isEmpty) {
       setState(() {
         _error = 'Please fill in all fields';
       });
@@ -57,15 +58,19 @@ class _AuthScreenState extends State<AuthScreen> {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1A73E8).withOpacity(0.1),
+                  color: const Color(0xFF1A73E8).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.home_work_rounded, size: 36, color: Color(0xFF1A73E8)),
+                child: const Icon(Icons.home_work_rounded,
+                    size: 36, color: Color(0xFF1A73E8)),
               ),
               const SizedBox(height: 24),
               const Text(
                 'PD Villas Staff Portal',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF202124)),
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF202124)),
               ),
               const SizedBox(height: 8),
               const Text(
@@ -84,12 +89,14 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline_rounded, color: Colors.red.shade600, size: 20),
+                      Icon(Icons.error_outline_rounded,
+                          color: Colors.red.shade600, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _error!,
-                          style: TextStyle(color: Colors.red.shade800, fontSize: 12),
+                          style: TextStyle(
+                              color: Colors.red.shade800, fontSize: 12),
                         ),
                       ),
                     ],
@@ -102,7 +109,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: 'Email Address',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   prefixIcon: const Icon(Icons.email_outlined),
                 ),
               ),
@@ -112,7 +120,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: 'Password',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   prefixIcon: const Icon(Icons.lock_outline_rounded),
                 ),
               ),
@@ -134,9 +143,11 @@ class _AuthScreenState extends State<AuthScreen> {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2),
                         )
-                      : const Text('Sign In', style: TextStyle(fontWeight: FontWeight.bold)),
+                      : const Text('Sign In',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],

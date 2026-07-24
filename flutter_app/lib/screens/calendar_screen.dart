@@ -32,7 +32,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
           children: [
             Icon(Icons.calendar_today_rounded, color: Color(0xFF1A73E8)),
             SizedBox(width: 8),
-            Text('PD Villas Calendar', style: TextStyle(fontWeight: FontWeight.w600)),
+            Text('PD Villas Calendar',
+                style: TextStyle(fontWeight: FontWeight.w600)),
           ],
         ),
         actions: [
@@ -40,14 +41,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
             icon: const Icon(Icons.sync_rounded),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Offline data synchronized with Cloud Firestore!')),
+                const SnackBar(
+                    content: Text(
+                        'Offline data synchronized with Cloud Firestore!')),
               );
             },
           ),
         ],
       ),
       body: StreamBuilder<List<Booking>>(
-        stream: FirebaseService().getAssignedBookingsStream(_assignedPropertyIds),
+        stream:
+            FirebaseService().getAssignedBookingsStream(_assignedPropertyIds),
         builder: (context, snapshot) {
           final bookings = snapshot.data ?? [];
 
@@ -87,13 +91,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: const Color(0xFF1A73E8).withOpacity(0.1),
-                          child: const Icon(Icons.home_work_rounded, color: Color(0xFF1A73E8)),
+                          backgroundColor:
+                              const Color(0xFF1A73E8).withValues(alpha: 0.1),
+                          child: const Icon(Icons.home_work_rounded,
+                              color: Color(0xFF1A73E8)),
                         ),
-                        title: Text(b.propertyName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('Date: ${b.bookingDate} | Check-in: ${b.checkinTime}'),
+                        title: Text(b.propertyName,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(
+                            'Date: ${b.bookingDate} | Check-in: ${b.checkinTime}'),
                         trailing: Chip(
-                          label: Text(b.status.toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.white)),
+                          label: Text(b.status.toUpperCase(),
+                              style: const TextStyle(
+                                  fontSize: 10, color: Colors.white)),
                           backgroundColor: Colors.green,
                         ),
                       ),

@@ -11,6 +11,8 @@ import {
   isSameDay, 
   addDays, 
   subDays,
+  subMonths,
+  addMonths,
   parseISO,
   getDay,
   differenceInDays
@@ -72,44 +74,104 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Month Switch Sliding Animation States
-  const [prevDate, setPrevDate] = useState<Date>(currentDate);
-  const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
-
-  React.useEffect(() => {
-    if (currentDate.getTime() !== prevDate.getTime()) {
-      if (currentDate > prevDate) {
-        setSlideDirection('right');
-      } else {
-        setSlideDirection('left');
-      }
-      setPrevDate(currentDate);
-    }
-  }, [currentDate, prevDate]);
-
-  // Touch Swipe States
+  // Month Slider / Sliding animation states
+  const [displayDate, setDisplayDate] = useState<Date>(currentDate);
+  const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
+  const [slideOffset, setSlideOffset] = useState<number>(-33.333); // centered at -33.333%
+  const [useTransition, setUseTransition] = useState<boolean>(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchEndX, setTouchEndX] = useState<number | null>(null);
+  const [deltaX, setDeltaX] = useState<number>(0);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Sync displayDate and animate when currentDate changes from parent (e.g. Header buttons)
+  React.useEffect(() => {
+    if (currentDate.getTime() === displayDate.getTime()) {
+      return;
+    }
+
+    const isNext = currentDate > displayDate;
+    setUseTransition(true);
+    setIsTransitioning(true);
+    setSlideOffset(isNext ? -66.666 : 0);
+  }, [currentDate, displayDate]);
+
+  const handleTransitionEnd = () => {
+    setDisplayDate(currentDate);
+    setUseTransition(false);
+    setIsTransitioning(false);
+    setSlideOffset(-33.333);
+  };
 
   const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEndX(null);
+    if (isTransitioning) return;
     setTouchStartX(e.targetTouches[0].clientX);
+    setDeltaX(0);
+    setUseTransition(false);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEndX(e.targetTouches[0].clientX);
+    if (touchStartX === null) return;
+    const currentX = e.targetTouches[0].clientX;
+    const diff = currentX - touchStartX;
+    setDeltaX(diff);
+
+    const containerWidth = containerRef.current?.offsetWidth || window.innerWidth;
+    const percent = (diff / containerWidth) * 33.333; // since one month panel occupies 1/3 (33.333%) of track width
+    setSlideOffset(-33.333 + percent);
   };
 
   const onTouchEnd = () => {
-    if (!touchStartX || !touchEndX) return;
-    const distance = touchStartX - touchEndX;
+    if (touchStartX === null) return;
+    const containerWidth = containerRef.current?.offsetWidth || window.innerWidth;
     const minSwipeDistance = 50; // minimum distance in px to register a swipe
 
-    if (distance > minSwipeDistance && onNavigateDate) {
-      // Swiped Left -> Next Month
-      onNavigateDate('next');
-    } else if (distance < -minSwipeDistance && onNavigateDate) {
+    setTouchStartX(null);
+
+    if (deltaX > minSwipeDistance && onNavigateDate) {
       // Swiped Right -> Prev Month
+      setUseTransition(true);
+      setSlideOffset(0);
+      setIsTransitioning(true);
+      onNavigateDate('prev');
+    } else if (deltaX < -minSwipeDistance && onNavigateDate) {
+      // Swiped Left -> Next Month
+      setUseTransition(true);
+      setSlideOffset(-66.666);
+      setIsTransitioning(true);
+      onNavigateDate('next');
+    } else {
+      // Bounce back to center
+      setUseTransition(true);
+      setSlideOffset(-33.333);
+    }
+  };
+
+  const lastWheelTime = React.useRef<number>(0);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (viewMode !== 'month' || isTransitioning) return;
+
+    const now = Date.now();
+    if (now - lastWheelTime.current < 800) {
+      return; // Rate limit wheel transitions
+    }
+
+    const threshold = 30; // Ignore tiny scroll events
+    if (Math.abs(e.deltaY) < threshold) return;
+
+    if (e.deltaY > 0 && onNavigateDate) {
+      // Scroll Down -> Next Month
+      lastWheelTime.current = now;
+      setUseTransition(true);
+      setSlideOffset(-66.666);
+      setIsTransitioning(true);
+      onNavigateDate('next');
+    } else if (e.deltaY < 0 && onNavigateDate) {
+      // Scroll Up -> Prev Month
+      lastWheelTime.current = now;
+      setUseTransition(true);
+      setSlideOffset(0);
+      setIsTransitioning(true);
       onNavigateDate('prev');
     }
   };
@@ -137,53 +199,35 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Handle Month View
   if (viewMode === 'month') {
-    const monthStart = startOfMonth(currentDate);
-    const monthEnd = endOfMonth(currentDate);
-    const startDate = startOfWeek(monthStart);
-    const endDate = endOfWeek(monthEnd);
+    const getMonthWeeks = (date: Date) => {
+      const monthStart = startOfMonth(date);
+      const monthEnd = endOfMonth(date);
+      const startDate = startOfWeek(monthStart);
+      const endDate = endOfWeek(monthEnd);
+      const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
 
-    const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
+      const weeks: Date[][] = [];
+      for (let i = 0; i < calendarDays.length; i += 7) {
+        weeks.push(calendarDays.slice(i, i + 7));
+      }
+      return weeks;
+    };
 
-    // Chunk calendarDays into weeks (arrays of 7 days)
-    const weeks: Date[][] = [];
-    for (let i = 0; i < calendarDays.length; i += 7) {
-      weeks.push(calendarDays.slice(i, i + 7));
-    }
+    const prevMonthWeeks = getMonthWeeks(subMonths(displayDate, 1));
+    const currMonthWeeks = getMonthWeeks(displayDate);
+    const nextMonthWeeks = getMonthWeeks(addMonths(displayDate, 1));
 
-    return (
-      <div className="flex-1 bg-gray-50 p-1 md:p-4 flex flex-col min-h-0 select-none relative overflow-hidden">
-        {/* Card wrapper */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* Horizontal scroll wrapper for small mobile viewports (disabled on mobile) */}
-          <div className={`flex-1 flex flex-col no-scrollbar ${isMobile ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}>
-            <div className={`flex-1 flex flex-col ${isMobile ? 'w-full h-full' : 'min-w-[768px] sm:min-w-0'}`}>
-            {/* Days of Week Header */}
-            <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase text-center py-2.5 shadow-2xs sticky top-0 z-20 tracking-wider">
-              <span>SUN</span>
-              <span>MON</span>
-              <span>TUE</span>
-              <span>WED</span>
-              <span>THU</span>
-              <span>FRI</span>
-              <span>SAT</span>
-            </div>
-
-            {/* Month Grid grouped by Week Rows */}
-            <div 
-              key={currentDate.toISOString()}
-              className={`flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 ${isMobile ? 'overflow-hidden' : 'overflow-y-auto'} ${
-                slideDirection === 'right' ? 'animate-slide-in-right' : slideDirection === 'left' ? 'animate-slide-in-left' : ''
-              }`}
-              onTouchStart={onTouchStart}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
-              style={{ 
-                gridTemplateRows: isMobile 
-                  ? `repeat(${weeks.length}, 1fr)` 
-                  : `repeat(${weeks.length}, minmax(130px, 1fr))` 
-              }}
-            >
-          {weeks.map((week, weekIdx) => {
+    const renderMonthGrid = (mWeeks: Date[][], mDate: Date) => {
+      return (
+        <div 
+          className={`w-full flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 ${isMobile ? 'overflow-hidden' : 'overflow-y-auto'}`}
+          style={{ 
+            gridTemplateRows: isMobile 
+              ? `repeat(${mWeeks.length}, 1fr)` 
+              : `repeat(${mWeeks.length}, minmax(130px, 1fr))` 
+          }}
+        >
+          {mWeeks.map((week, weekIdx) => {
             const weekStartStr = format(week[0], 'yyyy-MM-dd');
             const weekEndStr = format(week[6], 'yyyy-MM-dd');
 
@@ -200,7 +244,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <div className="grid grid-cols-7 gap-[1px] h-full">
                   {week.map((day) => {
                     const dateStr = format(day, 'yyyy-MM-dd');
-                    const isCurrentMonth = isSameMonth(day, currentDate);
+                    const isCurrentMonth = isSameMonth(day, mDate);
                     const isToday = isSameDay(day, new Date());
                     const isSelectedDay = selectedDateStr === dateStr;
 
@@ -358,6 +402,54 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             );
           })}
         </div>
+      );
+    };
+
+    return (
+      <div className="flex-1 bg-gray-50 p-1 md:p-4 flex flex-col min-h-0 select-none relative overflow-hidden">
+        {/* Card wrapper */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Horizontal scroll wrapper for small mobile viewports (disabled on mobile) */}
+          <div className={`flex-1 flex flex-col no-scrollbar ${isMobile ? 'overflow-hidden' : 'overflow-x-auto overflow-y-auto'}`}>
+            <div className={`flex-1 flex flex-col ${isMobile ? 'w-full h-full' : 'min-w-[768px] sm:min-w-0'}`}>
+            {/* Days of Week Header */}
+            <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase text-center py-2.5 shadow-2xs sticky top-0 z-20 tracking-wider">
+              <span>SUN</span>
+              <span>MON</span>
+              <span>TUE</span>
+              <span>WED</span>
+              <span>THU</span>
+              <span>FRI</span>
+              <span>SAT</span>
+            </div>
+
+            {/* Sliding months viewport container */}
+            <div ref={containerRef} className="overflow-hidden flex-1 relative min-h-0 w-full" onWheel={handleWheel}>
+              <div
+                className="flex flex-row h-full w-[300%]"
+                style={{
+                  transform: `translateX(${slideOffset}%)`,
+                  transition: useTransition ? 'transform 300ms cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
+                }}
+                onTransitionEnd={handleTransitionEnd}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+              >
+                {/* Previous Month Panel */}
+                <div className="w-1/3 h-full flex flex-col min-h-0">
+                  {renderMonthGrid(prevMonthWeeks, subMonths(displayDate, 1))}
+                </div>
+                {/* Current Month Panel */}
+                <div className="w-1/3 h-full flex flex-col min-h-0">
+                  {renderMonthGrid(currMonthWeeks, displayDate)}
+                </div>
+                {/* Next Month Panel */}
+                <div className="w-1/3 h-full flex flex-col min-h-0">
+                  {renderMonthGrid(nextMonthWeeks, addMonths(displayDate, 1))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
