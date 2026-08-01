@@ -1,0 +1,101 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          
+      - name: Create google-services.json
+        run: |
+          mkdir -p flutter_app/android/app
+          cat > flutter_app/android/app/google-services.json << 'EOF'
+          {
+            "project_info": {
+              "project_number": "1041011620710",
+              "project_id": "gen-lang-client-0028633608",
+              "storage_bucket": "gen-lang-client-0028633608.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:1041011620710:android:cf06c22855ceef0dfea6a7",
+                  "android_client_info": {
+                    "package_name": "com.example.pd_holiday_villas_staff"
+                  }
+                },
+                "oauth_client": [
+                  {
+                    "client_id": "1041011620710-pgecau2pisuc45a319p39bk8me6ko9al.apps.googleusercontent.com",
+                    "client_type": 3
+                  }
+                ],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyDUqgSt6CRXea6O5QQczdd7Hef0tJDT00M"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "status": 2,
+                    "invited_service": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+        shell: bash
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > flutter_app/android/app/pd-villas-release.jks
+        shell: bash
+
+      - name: Create key.properties
+        run: |
+          cat > flutter_app/android/key.properties << EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=pd-villas-release.jks
+          EOF
+        shell: bash
+          
+      - name: Install Dependencies
+        run: flutter pub get
+        working-directory: flutter_app
+
+      - name: Generate App Launcher Icons
+        run: dart run flutter_launcher_icons
+        working-directory: flutter_app
+        
+      - name: Build APK
+        run: flutter build apk --release
+        working-directory: flutter_app
+        
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pd-villas-staff-apk
+          path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
+

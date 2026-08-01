@@ -1,0 +1,6 @@
+{
+  "name": "PD Holiday Villas Booking System",
+  "description": "Google Calendar style booking and staff management web application for PD Holiday Villas with property isolation and real-time synchronization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
