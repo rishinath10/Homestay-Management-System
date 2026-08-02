@@ -169,7 +169,7 @@ export default function App() {
         } catch (e) {}
       }
 
-      const { data: nData } = await supabase.from('notifications').select('*').order('timestamp', { ascending: false });
+      const { data: nData } = await supabase.from('notifications').select('*').order('timestamp', { ascending: false }).limit(50);
       if (nData) {
         const notifsStr = JSON.stringify(nData);
         if (notifsStr !== notifsJsonRef.current) {
@@ -193,11 +193,6 @@ export default function App() {
     window.addEventListener('offline', handleOffline);
 
     fetchAllData();
-
-    // Background 4-second automatic sync interval to ensure all devices/accounts stay in sync
-    const syncInterval = setInterval(() => {
-      fetchAllData();
-    }, 4000);
 
     // Real-time Supabase Listeners with Push Notification Alert Trigger
     const channel = supabase
@@ -238,7 +233,6 @@ export default function App() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      clearInterval(syncInterval);
       supabase.removeChannel(channel);
     };
   }, [fetchAllData]);

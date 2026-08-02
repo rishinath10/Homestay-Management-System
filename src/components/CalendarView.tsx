@@ -157,28 +157,33 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const handleWheelRaw = (e: WheelEvent) => {
       if (viewMode !== 'month') return;
 
-      const threshold = 30; // Ignore tiny scroll events
-      if (Math.abs(e.deltaY) < threshold) return;
+      // Check both horizontal deltaX (Mac trackpad swipe left/right) and vertical deltaY
+      const deltaX = e.deltaX;
+      const deltaY = e.deltaY;
+      const primaryDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
 
-      // Always prevent vertical scrolling in month view to let the months slide left/right smoothly
+      const threshold = 20; // Sensitivity threshold for gesture responsiveness
+      if (Math.abs(primaryDelta) < threshold) return;
+
+      // Prevent default browser history navigation / vertical scroll in month view
       e.preventDefault();
 
       if (isTransitioning) return;
 
       const now = Date.now();
-      if (now - lastWheelTime.current < 800) {
-        return; // Rate limit wheel transitions
+      if (now - lastWheelTime.current < 500) {
+        return; // Rate limit gesture month transitions
       }
 
-      if (e.deltaY > 0 && onNavigateDate) {
-        // Scroll Down -> Next Month
+      // Trackpad swipe right / scroll down (positive delta) -> Next Month
+      // Trackpad swipe left / scroll up (negative delta) -> Prev Month
+      if (primaryDelta > 0 && onNavigateDate) {
         lastWheelTime.current = now;
         setUseTransition(true);
         setSlideOffset(-66.666);
         setIsTransitioning(true);
         onNavigateDate('next');
-      } else if (e.deltaY < 0 && onNavigateDate) {
-        // Scroll Up -> Prev Month
+      } else if (primaryDelta < 0 && onNavigateDate) {
         lastWheelTime.current = now;
         setUseTransition(true);
         setSlideOffset(0);
