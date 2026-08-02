@@ -26,7 +26,15 @@ const PRESET_COLORS = [
   { hex: '#e65100', label: 'Orange' },
   { hex: '#8e24aa', label: 'Purple' },
   { hex: '#43a047', label: 'Green' },
-  { hex: '#d93025', label: 'Red' }
+  { hex: '#d93025', label: 'Red' },
+  { hex: '#eab308', label: 'Yellow' },
+  { hex: '#18181b', label: 'Black' },
+  { hex: '#d97706', label: 'Amber' },
+  { hex: '#db2777', label: 'Pink' },
+  { hex: '#0284c7', label: 'Sky Blue' },
+  { hex: '#7c3aed', label: 'Violet' },
+  { hex: '#059669', label: 'Emerald' },
+  { hex: '#4b5563', label: 'Slate Gray' }
 ];
 
 const compressImage = (file: File): Promise<string> => {
@@ -563,19 +571,29 @@ export const PropertiesView: React.FC<PropertiesViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">Theme Calendar Color *</label>
-                  <div className="flex flex-wrap gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     {PRESET_COLORS.map((col) => (
                       <button
                         key={col.hex}
                         type="button"
                         onClick={() => setColor(col.hex)}
                         className={`w-7 h-7 rounded-full border-2 transition-all shrink-0 ${
-                          color === col.hex ? 'border-black scale-110 shadow-md' : 'border-transparent hover:scale-105'
+                          color === col.hex ? 'border-blue-600 scale-110 shadow-md ring-2 ring-blue-300' : 'border-gray-200 hover:scale-105'
                         }`}
                         style={{ backgroundColor: col.hex }}
                         title={col.label}
                       />
                     ))}
+                    <div className="relative flex items-center shrink-0 ml-1">
+                      <input
+                        type="color"
+                        value={color}
+                        onChange={(e) => setColor(e.target.value)}
+                        className="w-7 h-7 rounded-full cursor-pointer border border-gray-300 p-0 overflow-hidden bg-transparent"
+                        title="Custom Color Picker"
+                      />
+                      <span className="text-[10px] text-gray-500 font-medium ml-1.5">{color}</span>
+                    </div>
                   </div>
                 </div>
 
