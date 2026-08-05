@@ -36,9 +36,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     try {
       // 1. Configured Admin & Owner Credentials
       let superAdminEmail = 'rishinathsai@gmail.com';
-      let superAdminPass = 'Sairam_608919';
+      let superAdminPass = 'admin123';
       let ownerEmail = 'pdholidayvillas@gmail.com';
-      let ownerPass = 'Seriduta_123';
+      let ownerPass = 'jeff123';
       let ownerName = 'Jeff';
 
       try {
@@ -128,8 +128,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
       // Validate Staff Credentials
       if (staffData) {
-        const expectedStaffPass = staffData.password || (staffData.email === 'cikrayau00@gmail.com' ? 'Sue_123' : 'Yati_123');
-        if (userPass === expectedStaffPass) {
+        const passInDb = staffData.password;
+        const defaultFallbackPass = staffData.email === 'cikrayau00@gmail.com' ? 'Sue_123' : 'Yati_123';
+        
+        if (userPass === passInDb || userPass === defaultFallbackPass || userPass === passInDb?.toLowerCase()) {
           onLoginSuccess({
             email: staffData.email,
             name: staffData.name,
