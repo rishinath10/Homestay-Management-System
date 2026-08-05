@@ -250,18 +250,21 @@ export async function syncICalForProperty(
     timestamp: new Date().toISOString()
   };
 
-  try {
-    await supabase.from('notifications').insert({
-      id: syncLogId,
-      propertyId: property.id,
-      propertyName: property.name,
-      message: `[iCal Sync] Imported ${eventsImported} events for ${property.name}`,
-      channel: 'ical_sync',
-      status: 'sent',
-      timestamp: new Date().toISOString()
-    });
-  } catch (e) {
-    console.error('Failed to log sync:', e);
+  // Add Sync Log only if events were imported/updated to prevent bloat
+  if (eventsImported > 0) {
+    try {
+      await supabase.from('notifications').insert({
+        id: syncLogId,
+        propertyId: property.id,
+        propertyName: property.name,
+        message: `[iCal Sync] Imported ${eventsImported} events for ${property.name}`,
+        channel: 'ical_sync',
+        status: 'sent',
+        timestamp: new Date().toISOString()
+      });
+    } catch (e) {
+      console.error('Failed to log sync:', e);
+    }
   }
 
   return { success: true, eventsImported, logs };
