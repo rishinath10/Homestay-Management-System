@@ -3,8 +3,8 @@ import { Property, Staff, Booking, NotificationLog, Role, VillaMemo } from '../t
 
 // Read Supabase environment credentials with safe fallback
 const metaEnv = (import.meta as any).env || {};
-const supabaseUrl = metaEnv.VITE_SUPABASE_URL || 'https://tcwrtxizwnbnttukfrir.supabase.co';
-const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjd3J0eGl6d25ibnR0dWtmcmlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxNjA3NzMsImV4cCI6MjEwMDczNjc3M30.9lxFX743LdZF1QBJ3-zBCydx3Ktw8b6mk0irbOdxC00';
+const supabaseUrl = metaEnv.VITE_SUPABASE_URL || 'https://qfzhsleqhpvjnbtkjzan.supabase.co';
+const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmemhzbGVxaHB2am5idGtqemFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5MTI0ODQsImV4cCI6MjEwMTQ4ODQ4NH0.9latsSe6LfEU1iwHPonwgEEWe5OS-qJlfLele9Cx5_E';
 const supabaseAnonKey = metaEnv.VITE_SUPABASE_ANON_KEY || defaultKey;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
