@@ -438,21 +438,25 @@ export default function App() {
         alert(`⚠️ Could not save booking to database: ${upsertErr.message}`);
       } else {
         // Re-fetch all data to ensure local state and cache are completely synced
-        await fetchAllData();
+        fetchAllData().catch(err => console.warn('Background sync error:', err));
       }
     } catch (e: any) {
       console.error('Supabase bookings save exception:', e);
       alert(`⚠️ Could not save booking to database: ${e?.message || 'Network error'}`);
     }
 
-    // 3. Log Activity
-    await logActivity(
-      sessionUser?.email || 'unknown',
-      sessionUser?.name || 'Unknown',
-      activeRole,
-      bookingData.id ? 'Updated Booking' : 'Created Booking',
-      `Booking ID: ${bookingId}, Guest: ${newBooking.guestName}, Property: ${newBooking.propertyName}`
-    ).catch(() => {});
+    // 3. Log Activity silently in background
+    try {
+      await logActivity(
+        sessionUser?.email || 'unknown',
+        sessionUser?.name || 'Unknown',
+        activeRole,
+        bookingData.id ? 'Updated Booking' : 'Created Booking',
+        `Booking ID: ${bookingId}, Guest: ${newBooking.guestName}, Property: ${newBooking.propertyName}`
+      );
+    } catch (err) {
+      console.warn('Failed to log activity:', err);
+    }
 
     // 4. Trigger Telegram + Email + Push notification alert to assigned staff
     const targetStaffId = newBooking.assignedStaffId || bookingData.assignedStaffId;
