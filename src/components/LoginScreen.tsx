@@ -93,9 +93,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       // Check Staff Login from Supabase Database
       let staffData: Staff | null = null;
       try {
-        const { data } = await supabase.from('staff').select('*').eq('email', userEmail).single();
-        if (data) {
-          staffData = data as Staff;
+        const { data } = await supabase.from('staff').select('*').eq('email', userEmail);
+        if (data && data.length > 0) {
+          staffData = data[0] as Staff;
         }
       } catch (e) {}
 
@@ -109,7 +109,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           role: 'staff',
           assignedPropertyIds: ['prop-1', 'prop-2'],
           avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80',
-          password: 'Sue_123'
+          password: 'sue123'
         };
       }
 
@@ -122,16 +122,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           role: 'staff',
           assignedPropertyIds: ['prop-3', 'prop-4', 'prop-5'],
           avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-          password: 'Yati_123'
+          password: 'yati123'
         };
       }
 
       // Validate Staff Credentials
       if (staffData) {
-        const passInDb = staffData.password;
-        const defaultFallbackPass = staffData.email === 'cikrayau00@gmail.com' ? 'Sue_123' : 'Yati_123';
-        
-        if (userPass === passInDb || userPass === defaultFallbackPass || userPass === passInDb?.toLowerCase()) {
+        const passInDb = staffData.password || '';
+        const lowerInputPass = userPass.toLowerCase();
+        const lowerDbPass = passInDb.toLowerCase();
+        const defaultFallbackPass = (staffData.email === 'cikrayau00@gmail.com' ? 'sue123' : 'yati123').toLowerCase();
+        const altFallbackPass = (staffData.email === 'cikrayau00@gmail.com' ? 'sue_123' : 'yati_123').toLowerCase();
+
+        if (lowerInputPass === lowerDbPass || lowerInputPass === defaultFallbackPass || lowerInputPass === altFallbackPass) {
           onLoginSuccess({
             email: staffData.email,
             name: staffData.name,
