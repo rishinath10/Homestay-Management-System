@@ -103,6 +103,16 @@ export default function App() {
   const staffJsonRef = useRef<string>('');
   const bookingsJsonRef = useRef<string>('');
   const notifsJsonRef = useRef<string>('');
+  const fetchAllDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const activeRoleRef = useRef(activeRole);
+  const activeStaffRef = useRef(activeStaff);
+  const staffListRef = useRef(staffList);
+
+  useEffect(() => {
+    activeRoleRef.current = activeRole;
+    activeStaffRef.current = activeStaff;
+    staffListRef.current = staffList;
+  }, [activeRole, activeStaff, staffList]);
 
   // 1. Fetch All Data helper (component-level function accessible by all handlers)
   const fetchAllData = React.useCallback(async () => {
@@ -137,16 +147,20 @@ export default function App() {
 
       if (bookingsStr !== bookingsJsonRef.current) {
         if (initialLoadDoneRef.current) {
+          const curRole = activeRoleRef.current;
+          const curStaff = activeStaffRef.current;
+          const curStaffList = staffListRef.current;
+
           remoteBookings.forEach(b => {
             if (!knownBookingIdsRef.current.has(b.id)) {
               knownBookingIdsRef.current.add(b.id);
               
-              const isAssigned = (activeStaff && b.assignedStaffId === activeStaff.id) ||
-                (activeStaff && activeStaff.assignedPropertyIds?.includes(b.propertyId)) ||
-                (activeRole === 'staff');
+              const isAssigned = (curStaff && b.assignedStaffId === curStaff.id) ||
+                (curStaff && curStaff.assignedPropertyIds?.includes(b.propertyId)) ||
+                (curRole === 'staff');
 
               if (isAssigned) {
-                const staffRecipient = activeStaff || staffList.find(s => s.id === b.assignedStaffId) || {
+                const staffRecipient = curStaff || curStaffList.find(s => s.id === b.assignedStaffId) || {
                   id: 'staff-1',
                   name: b.assignedStaffName || 'Staff Member',
                   email: '',
@@ -181,50 +195,99 @@ export default function App() {
     } catch (e) {
       console.warn('Data load notice:', e);
     }
-  }, [activeRole, activeStaff, staffList]);
+  }, []);
+
+  useEffect(() => {
+    fetchAllDataRef.current = fetchAllData;
+  }, [fetchAllData]);
 
   // Initial Setup: Seed Supabase & Listeners (Runs only once on mount)
   useEffect(() => {
     seedInitialSupabaseData();
 
-    // Online/Offline Listeners
-    const handleOnline = () => setIsOnline(true);
+    // Online/Offline & Visibility Listeners
+    const handleOnline = () => {
+      setIsOnline(true);
+      fetchAllDataRef.current();
+    };
     const handleOffline = () => setIsOnline(false);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchAllDataRef.current();
+      }
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('visibilitychange', handleVisibilityChange);
 
-    fetchAllData();
+    fetchAllDataRef.current();
 
-    // Real-time Supabase Listeners with Push Notification Alert Trigger
-    const channel = supabase
-      .channel('realtime_tables_sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'properties' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'staff' }, fetchAllData)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, (payload) => {
-        const newB = payload.new as Booking;
-        if (newB && newB.id && !knownBookingIdsRef.current.has(newB.id)) {
-          knownBookingIdsRef.current.add(newB.id);
-          const isAssigned = (activeStaff && newB.assignedStaffId === activeStaff.id) ||
-            (activeStaff && activeStaff.assignedPropertyIds?.includes(newB.propertyId)) ||
-            (activeRole === 'staff');
+    // 20-second fallback polling interval
+    const pollingInterval = setInterval(() => {
+      fetchAllDataRef.current();
+    }, 20000);
 
-          if (isAssigned) {
-            const staffRecipient = activeStaff || staffList.find(s => s.id === newB.assignedStaffId) || {
-              id: 'staff-1',
-              name: newB.assignedStaffName || 'Staff Member',
-              email: '',
-              phone: '',
-              role: 'staff',
-              assignedPropertyIds: [newB.propertyId]
-            };
-            triggerNewBookingPushAlert(newB, staffRecipient);
+    let currentChannel: any = null;
+    let retryTimer: any = null;
+
+    const setupChannel = () => {
+      if (currentChannel) {
+        supabase.removeChannel(currentChannel);
+        currentChannel = null;
+      }
+
+      const channel = supabase
+        .channel(`realtime_tables_sync_${Date.now()}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'properties' }, () => fetchAllDataRef.current())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'staff' }, () => fetchAllDataRef.current())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, (payload) => {
+          const newB = payload.new as Booking;
+          const curRole = activeRoleRef.current;
+          const curStaff = activeStaffRef.current;
+          const curStaffList = staffListRef.current;
+
+          if (newB && newB.id && !knownBookingIdsRef.current.has(newB.id)) {
+            knownBookingIdsRef.current.add(newB.id);
+            const isAssigned = (curStaff && newB.assignedStaffId === curStaff.id) ||
+              (curStaff && curStaff.assignedPropertyIds?.includes(newB.propertyId)) ||
+              (curRole === 'staff');
+
+            if (isAssigned) {
+              const staffRecipient = curStaff || curStaffList.find(s => s.id === newB.assignedStaffId) || {
+                id: 'staff-1',
+                name: newB.assignedStaffName || 'Staff Member',
+                email: '',
+                phone: '',
+                role: 'staff',
+                assignedPropertyIds: [newB.propertyId]
+              };
+              triggerNewBookingPushAlert(newB, staffRecipient);
+            }
           }
+          fetchAllDataRef.current();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => fetchAllDataRef.current())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => fetchAllDataRef.current());
+
+      channel.subscribe((status: string) => {
+        console.log(`[realtime] bookings sync channel status: ${status}`);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          if (currentChannel) {
+            supabase.removeChannel(currentChannel);
+            currentChannel = null;
+          }
+          fetchAllDataRef.current();
+          retryTimer = setTimeout(() => {
+            setupChannel();
+          }, 5000);
         }
-        fetchAllData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, fetchAllData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, fetchAllData)
-      .subscribe();
+      });
+
+      currentChannel = channel;
+    };
+
+    setupChannel();
 
     // Setup Push Notification Foreground Listener
     setupForegroundNotificationListener((title, body) => {
@@ -234,9 +297,14 @@ export default function App() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      supabase.removeChannel(channel);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(pollingInterval);
+      if (retryTimer) clearTimeout(retryTimer);
+      if (currentChannel) {
+        supabase.removeChannel(currentChannel);
+      }
     };
-  }, [fetchAllData]);
+  }, []);
 
   // 2. Run Check-in / Check-out reminders when bookings or staff list loads/updates
   useEffect(() => {
