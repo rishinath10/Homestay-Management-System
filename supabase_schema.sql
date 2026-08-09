@@ -122,14 +122,32 @@ CREATE TABLE IF NOT EXISTS public.settings (
   seeded BOOLEAN DEFAULT FALSE
 );
 
--- Disable Row Level Security (RLS) so web clients can access tables without custom RLS policy blocks
-ALTER TABLE public.properties DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.staff DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.bookings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.notifications DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.activity_logs DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.villa_memos DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
+-- Enable Row Level Security (RLS) and grant permissive access policies for web clients
+ALTER TABLE public.properties ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.staff ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.villa_memos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if any
+DROP POLICY IF EXISTS "Allow all for properties" ON public.properties;
+DROP POLICY IF EXISTS "Allow all for staff" ON public.staff;
+DROP POLICY IF EXISTS "Allow all for bookings" ON public.bookings;
+DROP POLICY IF EXISTS "Allow all for notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Allow all for activity_logs" ON public.activity_logs;
+DROP POLICY IF EXISTS "Allow all for villa_memos" ON public.villa_memos;
+DROP POLICY IF EXISTS "Allow all for settings" ON public.settings;
+
+-- Create permissive policies for anon, authenticated, and service_role
+CREATE POLICY "Allow all for properties" ON public.properties FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for staff" ON public.staff FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for bookings" ON public.bookings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for notifications" ON public.notifications FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for activity_logs" ON public.activity_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for villa_memos" ON public.villa_memos FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for settings" ON public.settings FOR ALL USING (true) WITH CHECK (true);
 
 -- Grant permissions to anon and authenticated web clients
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
