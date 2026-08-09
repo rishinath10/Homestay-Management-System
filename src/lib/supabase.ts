@@ -174,7 +174,9 @@ export async function logActivity(userEmail: string, userName: string, role: str
 
     // 1 in 10 chance to run log purge to keep database lightweight automatically
     if (Math.random() < 0.1) {
-      await supabase.rpc('purge_old_logs').catch(() => {});
+      try {
+        await supabase.rpc('purge_old_logs');
+      } catch (e) {}
     }
   } catch (err) {
     console.warn('Failed to log activity:', err);

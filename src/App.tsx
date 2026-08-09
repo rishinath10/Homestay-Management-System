@@ -24,7 +24,8 @@ import { triggerTelegramAndEmailAlerts } from './lib/telegramEmail';
 import { 
   requestNotificationPermission, 
   setupForegroundNotificationListener, 
-  checkUpcomingReminders 
+  checkUpcomingReminders,
+  triggerNewBookingPushAlert
 } from './lib/pushNotifications';
 import { addMonths, subMonths } from 'date-fns';
 import { Calendar as CalendarIcon, Home, Users, Plus, RefreshCw, SendHorizontal, StickyNote } from 'lucide-react';
