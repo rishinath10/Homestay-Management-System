@@ -408,7 +408,7 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-gray-100/70 border-b border-gray-200 text-gray-600 font-semibold">
-                  <th className="p-4 w-72">Staff Member Details & Password Management</th>
+                  <th className="p-4 w-52 md:w-72 sticky left-0 bg-gray-100/70 z-10">Staff Member Details & Password Management</th>
                   {properties.map((p) => (
                     <th key={p.id} className="p-3 text-center min-w-[120px]">
                       <div className="flex flex-col items-center">
@@ -427,7 +427,7 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
                 {staffList.map((st) => (
                   <tr key={st.id} className="hover:bg-gray-50/50 transition-colors">
                     {/* Staff Profile Cell */}
-                    <td className="p-4">
+                    <td className="p-4 sticky left-0 bg-white z-10">
                       <div className="flex items-start space-x-3">
                         <img
                           src={st.avatarUrl}
@@ -570,10 +570,10 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-gray-50/40 border-b border-gray-200 text-gray-500 font-semibold">
-                    <th className="p-3 w-44">Timestamp</th>
-                    <th className="p-3 w-48">Operator</th>
-                    <th className="p-3 w-32">Role</th>
-                    <th className="p-3 w-36">Action</th>
+                    <th className="p-3 w-32 md:w-44">Timestamp</th>
+                    <th className="p-3 w-32 md:w-48">Operator</th>
+                    <th className="p-3 w-20 md:w-32">Role</th>
+                    <th className="p-3 w-24 md:w-36">Action</th>
                     <th className="p-3">Details</th>
                   </tr>
                 </thead>

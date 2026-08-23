@@ -183,7 +183,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             </div>
           </div>
-        <div>
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center space-x-2.5">
             <Database className="w-6 h-6 text-indigo-600" />
             <span>Database & System Settings</span>

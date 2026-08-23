@@ -82,7 +82,7 @@ export const Preloader: React.FC<PreloaderProps> = ({ isVisible }) => {
 
       {/* App name */}
       <h1
-        className="text-3xl font-bold text-white tracking-tight mb-1"
+        className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1"
         style={{
           fontFamily: 'Outfit, Inter, sans-serif',
           animation: 'fade-in 0.8s ease-out 0.3s both',
