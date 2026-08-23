@@ -452,8 +452,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             ? 'bg-gray-100/70 text-gray-400 opacity-60 cursor-not-allowed'
                             : isSelectedDay
                             ? 'bg-yellow-100/90 ring-2 ring-yellow-400 z-10'
-                            : !isCurrentMonth
-                            ? 'bg-gray-50/40 text-gray-400'
                             : 'bg-white hover:bg-yellow-50/60'
                         }`}
                       >
@@ -465,9 +463,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 ? 'bg-blue-600 text-white shadow-xs font-extrabold'
                                 : isSelectedDay
                                 ? 'bg-yellow-400 text-yellow-950 font-extrabold shadow-2xs'
-                                : isCurrentMonth
-                                ? 'text-gray-800'
-                                : 'text-gray-400'
+                                : isPastDay
+                                ? 'text-gray-400'
+                                : 'text-gray-800'
                             }`}
                           >
                             {format(day, 'd') === '1' ? format(day, 'd MMM') : format(day, 'd')}
