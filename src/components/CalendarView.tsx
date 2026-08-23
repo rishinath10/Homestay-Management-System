@@ -71,9 +71,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const handleResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => setIsMobile(window.innerWidth < 768), 150);
+    };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimer);
+    };
   }, []);
 
   // Month Slider / Sliding animation states
