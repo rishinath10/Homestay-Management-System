@@ -117,7 +117,8 @@ export default function App() {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
-      const { data: pData } = await supabase.from('properties').select('*');
+      const { data: pData, error: pErr } = await supabase.from('properties').select('*');
+      if (pErr) console.warn('Properties fetch error:', pErr.message);
       if (pData && pData.length > 0) {
         const uniquePropsMap = new Map<string, Property>();
         (pData as Property[]).forEach(p => uniquePropsMap.set(p.id, p));
@@ -132,7 +133,8 @@ export default function App() {
         }
       }
 
-      const { data: sData } = await supabase.from('staff').select('*');
+      const { data: sData, error: sErr } = await supabase.from('staff').select('*');
+      if (sErr) console.warn('Staff fetch error:', sErr.message);
       if (sData && sData.length > 0) {
         const staffStr = JSON.stringify(sData);
         if (staffStr !== staffJsonRef.current) {
@@ -141,7 +143,8 @@ export default function App() {
         }
       }
 
-      const { data: bData } = await supabase.from('bookings').select('*');
+      const { data: bData, error: bErr } = await supabase.from('bookings').select('*');
+      if (bErr) console.warn('Bookings fetch error:', bErr.message);
       const remoteBookings = (bData as Booking[]) || [];
       const bookingsStr = JSON.stringify(remoteBookings);
 
