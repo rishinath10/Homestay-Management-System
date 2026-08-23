@@ -64,10 +64,7 @@ export default function App() {
   const activeStaff = sessionUser?.staffObj || null;
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>(DEFAULT_PROPERTIES.map(p => p.id));
 
-  const displayBookings = React.useMemo(() => {
-    // All logged in users (Super Admin, Owner, Staff) can view all saved bookings
-    return bookings;
-  }, [bookings]);
+  const displayBookings = bookings;
 
   // Network & Auth State
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -104,6 +101,7 @@ export default function App() {
   const bookingsJsonRef = useRef<string>('');
   const notifsJsonRef = useRef<string>('');
   const fetchAllDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const isFetchingRef = useRef<boolean>(false);
   const activeRoleRef = useRef(activeRole);
   const activeStaffRef = useRef(activeStaff);
   const staffListRef = useRef(staffList);
@@ -116,6 +114,8 @@ export default function App() {
 
   // 1. Fetch All Data helper (component-level function accessible by all handlers)
   const fetchAllData = React.useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       const { data: pData } = await supabase.from('properties').select('*');
       if (pData && pData.length > 0) {
@@ -194,6 +194,8 @@ export default function App() {
       }
     } catch (e) {
       console.warn('Data load notice:', e);
+    } finally {
+      isFetchingRef.current = false;
     }
   }, []);
 
@@ -223,13 +225,14 @@ export default function App() {
 
     fetchAllDataRef.current();
 
-    // 20-second fallback polling interval
+    // 60-second fallback polling interval
     const pollingInterval = setInterval(() => {
       fetchAllDataRef.current();
-    }, 20000);
+    }, 60000);
 
     let currentChannel: any = null;
     let retryTimer: any = null;
+    let retryCount = 0;
 
     const setupChannel = () => {
       if (currentChannel) {
@@ -238,7 +241,7 @@ export default function App() {
       }
 
       const channel = supabase
-        .channel(`realtime_tables_sync_${Date.now()}`)
+        .channel('realtime_tables_sync')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'properties' }, () => fetchAllDataRef.current())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'staff' }, () => fetchAllDataRef.current())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, (payload) => {
@@ -267,20 +270,25 @@ export default function App() {
           }
           fetchAllDataRef.current();
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => fetchAllDataRef.current())
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' }, () => fetchAllDataRef.current())
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'bookings' }, () => fetchAllDataRef.current())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => fetchAllDataRef.current());
 
       channel.subscribe((status: string) => {
         console.log(`[realtime] bookings sync channel status: ${status}`);
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        if (status === 'SUBSCRIBED') {
+          retryCount = 0;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           if (currentChannel) {
             supabase.removeChannel(currentChannel);
             currentChannel = null;
           }
           fetchAllDataRef.current();
+          const delay = Math.min(5000 * Math.pow(2, retryCount), 60000);
+          retryCount++;
           retryTimer = setTimeout(() => {
             setupChannel();
-          }, 5000);
+          }, delay);
         }
       });
 
@@ -306,9 +314,11 @@ export default function App() {
     };
   }, []);
 
-  // 2. Run Check-in / Check-out reminders when bookings or staff list loads/updates
+  // 2. Run Check-in / Check-out reminders once after initial data load
+  const remindersCheckedRef = useRef(false);
   useEffect(() => {
-    if (bookings.length > 0 && staffList.length > 0) {
+    if (bookings.length > 0 && staffList.length > 0 && !remindersCheckedRef.current) {
+      remindersCheckedRef.current = true;
       checkUpcomingReminders(bookings, staffList);
     }
   }, [bookings, staffList]);

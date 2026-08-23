@@ -85,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       />
 
       <aside className={`fixed md:static inset-y-0 left-0 z-40 bg-white border-r border-gray-200 h-full overflow-y-auto flex flex-col p-4 shrink-0 transition-all duration-300 ease-in-out select-none shadow-xl md:shadow-none ${
-        isOpen ? 'w-72 md:w-64 translate-x-0 opacity-100' : '-translate-x-full md:translate-x-0 md:w-0 md:p-0 md:border-r-0 md:opacity-0 overflow-hidden'
+        isOpen ? 'w-64 translate-x-0 opacity-100' : '-translate-x-full md:translate-x-0 md:w-0 md:p-0 md:border-r-0 md:opacity-0 overflow-hidden'
       }`}>
         {/* Sidebar Header: Logo & Collapse Button */}
         <div className="flex items-center justify-between mb-5 pb-3 border-b border-gray-100">

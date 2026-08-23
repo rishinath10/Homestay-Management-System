@@ -71,9 +71,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const handleResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => setIsMobile(window.innerWidth < 768), 150);
+    };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimer);
+    };
   }, []);
 
   // Month Slider / Sliding animation states
@@ -550,7 +557,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden mt-2 md:mt-0">
           {/* Horizontal scroll wrapper for small mobile viewports (disabled on mobile) */}
           <div className="flex-1 flex flex-col no-scrollbar overflow-hidden">
-            <div className={`flex-1 flex flex-col min-h-0 ${isMobile ? 'w-full h-full' : 'min-w-[768px] sm:min-w-0'}`}>
+            <div className="flex-1 flex flex-col min-h-0 w-full">
             {/* Days of Week Header */}
             <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 text-[10px] sm:text-xs font-extrabold text-slate-500 uppercase text-center py-2.5 shadow-2xs sticky top-0 z-20 tracking-wider">
               <span>SUN</span>
@@ -854,7 +861,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       onCreateBookingAtDate(dateStr);
                     }
                   }}
-                  className={`p-3 rounded-2xl border transition-all space-y-2 min-h-[180px] ${
+                  className={`p-3 rounded-2xl border transition-all space-y-2 min-h-[120px] md:min-h-[180px] ${
                     isToday ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200 bg-gray-50/50 hover:bg-gray-100/50'
                   } ${activeRole === 'staff' ? 'cursor-default' : 'cursor-pointer'}`}
                 >
@@ -920,11 +927,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="bg-gray-100 border-b border-gray-200 sticky top-0 z-10">
-                <th className="p-3 text-left font-semibold text-gray-700 w-56 min-w-[220px] bg-gray-100 border-r border-gray-200">
+                <th className="p-3 text-left font-semibold text-gray-700 w-40 md:w-56 min-w-[160px] md:min-w-[220px] bg-gray-100 border-r border-gray-200 sticky left-0 z-20">
                   Property Name (PD Villa)
                 </th>
                 {days.map((d) => (
-                  <th key={d.toISOString()} className="p-2 text-center font-medium text-gray-700 min-w-[90px] border-r border-gray-200">
+                  <th key={d.toISOString()} className="p-2 text-center font-medium text-gray-700 min-w-[70px] md:min-w-[90px] border-r border-gray-200">
                     <div className="font-bold">{format(d, 'EEE')}</div>
                     <div className="text-[11px] text-gray-500">{format(d, 'MMM d')}</div>
                   </th>

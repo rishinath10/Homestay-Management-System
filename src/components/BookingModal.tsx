@@ -267,7 +267,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <User className="w-3.5 h-3.5 text-blue-600" />
               <span>Guest Details & Capacity</span>
             </h3>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block font-medium text-gray-600 mb-1">Guest Full Name</label>
                 <input
