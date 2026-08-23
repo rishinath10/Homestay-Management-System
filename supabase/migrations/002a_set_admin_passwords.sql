@@ -21,8 +21,8 @@ ON CONFLICT (id) DO NOTHING;
 UPDATE public.settings
 SET
   -- ↓↓↓ REPLACE THESE TWO VALUES ↓↓↓
-  "superAdminPasswordHash" = crypt('PutAdminPasswordHere', gen_salt('bf', 10)),
-  "ownerPasswordHash"      = crypt('PutOwnerPasswordHere', gen_salt('bf', 10)),
+  "superAdminPasswordHash" = crypt('admin123', gen_salt('bf', 10)),
+  "ownerPasswordHash"      = crypt('jeff123', gen_salt('bf', 10)),
   -- ↑↑↑ REPLACE THESE TWO VALUES ↑↑↑
 
   "superAdminEmail" = COALESCE("superAdminEmail", 'rishinathsai@gmail.com'),
