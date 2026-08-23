@@ -119,11 +119,22 @@ export const DEFAULT_STAFF: Staff[] = [
   }
 ];
 
+const SEED_CHECK_KEY = 'pd_seed_verified';
+
 export async function seedInitialSupabaseData() {
+  // Once we've confirmed the database is populated, skip the probe on every
+  // subsequent app load. Seeding is a one-time bootstrap, not a startup step.
   try {
-    const { data: existingProps } = await supabase.from('properties').select('id');
+    if (localStorage.getItem(SEED_CHECK_KEY) === 'true') return;
+  } catch (e) {}
+
+  try {
+    const { data: existingProps } = await supabase.from('properties').select('id').limit(1);
     if (existingProps && existingProps.length > 0) {
       // Database already has properties! DO NOT overwrite user-edited villa codes or details.
+      try {
+        localStorage.setItem(SEED_CHECK_KEY, 'true');
+      } catch (e) {}
       return;
     }
 
@@ -159,10 +170,27 @@ export async function resetSystemConfig() {
   } catch (err) {}
 }
 
+// Client-side log retention is a fallback only. purge_old_logs runs three
+// DELETEs, one with a correlated subquery over the whole notifications table,
+// so it must not ride along with routine user actions. Ideally this is a
+// pg_cron job server-side; until then it runs at most once per browser session
+// and never blocks the caller.
+let purgeAttemptedThisSession = false;
+
+function maybePurgeOldLogs() {
+  if (purgeAttemptedThisSession) return;
+  purgeAttemptedThisSession = true;
+  // Fire-and-forget: retention must never delay or fail a user action.
+  supabase.rpc('purge_old_logs').then(
+    () => {},
+    () => {}
+  );
+}
+
 export async function logActivity(userEmail: string, userName: string, role: string, action: string, details?: string) {
   try {
-    const id = `act-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    await supabase.from('activity_logs').insert({
+    const id = `act-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    const { error } = await supabase.from('activity_logs').insert({
       id,
       userEmail,
       userName,
@@ -171,13 +199,11 @@ export async function logActivity(userEmail: string, userName: string, role: str
       details: details || '',
       timestamp: new Date().toISOString()
     });
-
-    // 1 in 10 chance to run log purge to keep database lightweight automatically
-    if (Math.random() < 0.1) {
-      try {
-        await supabase.rpc('purge_old_logs');
-      } catch (e) {}
+    if (error) {
+      console.warn('Failed to log activity:', error.message);
+      return;
     }
+    maybePurgeOldLogs();
   } catch (err) {
     console.warn('Failed to log activity:', err);
   }

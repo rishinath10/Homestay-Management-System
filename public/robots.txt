@@ -1,0 +1,4 @@
+# Internal staff system for PD Holiday Villas.
+# Not intended for public discovery or search indexing.
+User-agent: *
+Disallow: /

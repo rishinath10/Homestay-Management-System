@@ -11,7 +11,7 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'logo.jpg', 'pwa-192x192.png', 'pwa-512x512.png'],
+        includeAssets: ['favicon.ico', 'logo.jpg', 'apple-touch-icon.png'],
         manifest: {
           name: 'PD Holiday Villas Management System',
           short_name: 'PDHV System',
@@ -24,16 +24,22 @@ export default defineConfig(() => {
           start_url: '/',
           icons: [
             {
-              src: 'logo.jpg',
+              src: 'pwa-192x192.png',
               sizes: '192x192',
-              type: 'image/jpeg',
+              type: 'image/png',
               purpose: 'any',
             },
             {
-              src: 'logo.jpg',
+              src: 'pwa-512x512.png',
               sizes: '512x512',
-              type: 'image/jpeg',
-              purpose: 'any maskable',
+              type: 'image/png',
+              purpose: 'any',
+            },
+            {
+              src: 'pwa-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable',
             },
           ],
         },
@@ -71,6 +77,20 @@ export default defineConfig(() => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
+    },
+    build: {
+      // Split vendor code so app updates don't invalidate the whole bundle in
+      // the service worker cache — returning users only re-download app code.
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            react: ['react', 'react-dom'],
+            supabase: ['@supabase/supabase-js'],
+            dates: ['date-fns'],
+          },
+        },
+      },
+      chunkSizeWarningLimit: 600,
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
