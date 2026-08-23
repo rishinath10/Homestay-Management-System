@@ -7,6 +7,7 @@ import {
   logActivity
 } from './lib/supabase';
 import { LoginScreen } from './components/LoginScreen';
+import { loadSession, signOut, AppSession } from './lib/auth';
 import { Property, Staff, Booking, NotificationLog, Role, CalendarViewMode } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -45,26 +46,9 @@ export default function App() {
   const [showPreloader, setShowPreloader] = useState(true);
 
   // User Session State
-  const [sessionUser, setSessionUser] = useState<{ email: string; name: string; role: Role; staffObj: Staff | null } | null>(() => {
-    // A corrupt or truncated value here would otherwise throw on every render
-    // and lock the user out of the app with no way back except clearing site
-    // data. Treat anything unparseable as "logged out".
-    try {
-      const stored = localStorage.getItem('pd_session');
-      if (!stored) return null;
-      const parsed = JSON.parse(stored);
-      if (!parsed || typeof parsed.email !== 'string' || typeof parsed.role !== 'string') {
-        localStorage.removeItem('pd_session');
-        return null;
-      }
-      return parsed;
-    } catch (e) {
-      try {
-        localStorage.removeItem('pd_session');
-      } catch (_) {}
-      return null;
-    }
-  });
+  // loadSession() validates the stored value and treats anything corrupt as
+  // logged out, so a bad localStorage entry cannot lock anyone out of the app.
+  const [sessionUser, setSessionUser] = useState<AppSession | null>(() => loadSession());
 
   // Navigation & View States
   const [activeTab, setActiveTab] = useState<'calendar' | 'properties' | 'staff' | 'memos' | 'ical' | 'notifications' | 'settings'>('calendar');
@@ -504,13 +488,10 @@ export default function App() {
         await logActivity(sessionUser.email, sessionUser.name, sessionUser.role, 'Logged Out').catch(() => {});
       } catch (e) {}
     }
-    localStorage.removeItem('pd_session');
+    // Revokes the session server-side as well as clearing it locally, so a
+    // copied token cannot keep being used after someone signs out.
+    await signOut();
     setSessionUser(null);
-    try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.warn('Supabase sign out error:', err);
-    }
     setTimeout(() => {
       setShowPreloader(false);
     }, 800);
@@ -757,7 +738,7 @@ export default function App() {
         <LoginScreen
           onLoginSuccess={async (user) => {
             setShowPreloader(true);
-            localStorage.setItem('pd_session', JSON.stringify(user));
+            // signIn() has already persisted the session; just adopt it here.
             setSessionUser(user);
             await logActivity(user.email, user.name, user.role, 'Logged In').catch(() => {});
             setTimeout(() => {

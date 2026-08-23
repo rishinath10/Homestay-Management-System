@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Database, Trash2, RotateCcw, AlertTriangle, CheckCircle, ShieldAlert, Key, UserCheck, ChevronLeft, Menu } from 'lucide-react';
-import { supabase, clearAllDatabaseCollections, resetSystemConfig, seedInitialSupabaseData, logActivity } from '../lib/supabase';
+import { clearAllDatabaseCollections, resetSystemConfig, seedInitialSupabaseData, logActivity } from '../lib/supabase';
+import { fetchAuthConfig, updateAuthConfig, setAccountPassword } from '../lib/auth';
 import { Role } from '../types';
 
 interface SettingsViewProps {
@@ -32,25 +33,67 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [ownerName, setOwnerName] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
 
+  // Account password management
+  const [pwTarget, setPwTarget] = useState<'super_admin' | 'owner'>('super_admin');
+  const [pwValue, setPwValue] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [isSavingPw, setIsSavingPw] = useState(false);
+
   useEffect(() => {
     const fetchConfig = async () => {
-      try {
-        const { data } = await supabase.from('settings').select('*').eq('id', 'auth_config').single();
-        if (data) {
-          setSuperAdminEmail(data.superAdminEmail || 'rishinathsai@gmail.com');
-          setOwnerEmail(data.ownerEmail || 'pdholidayvillas@gmail.com');
-          setOwnerName(data.ownerName || 'Jeff');
-        } else {
-          setSuperAdminEmail('rishinathsai@gmail.com');
-          setOwnerEmail('pdholidayvillas@gmail.com');
-          setOwnerName('Jeff');
-        }
-      } catch (err) {
-        console.warn('Failed to load settings config:', err);
+      // The settings table holds password hashes and is not directly readable
+      // with the anon key; this function returns only the non-secret fields.
+      const { data, error } = await fetchAuthConfig();
+      if (error) {
+        console.warn('Failed to load settings config:', error);
+        return;
+      }
+      if (data) {
+        setSuperAdminEmail(data.superAdminEmail || '');
+        setOwnerEmail(data.ownerEmail || '');
+        setOwnerName(data.ownerName || '');
       }
     };
     fetchConfig();
   }, []);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatusMessage(null);
+
+    if (pwValue.length < 8) {
+      setStatusMessage({ type: 'error', text: 'Password must be at least 8 characters.' });
+      return;
+    }
+    if (pwValue !== pwConfirm) {
+      setStatusMessage({ type: 'error', text: 'The two passwords do not match.' });
+      return;
+    }
+
+    setIsSavingPw(true);
+    try {
+      const result = await setAccountPassword(pwTarget, pwValue);
+      if (!result.ok) {
+        setStatusMessage({ type: 'error', text: result.error || 'Could not update the password.' });
+        return;
+      }
+
+      await logActivity(
+        userEmail, userName, activeRole,
+        'Changed Account Password',
+        `Target account: ${pwTarget === 'super_admin' ? 'Super Admin' : 'Owner'}`
+      );
+
+      setPwValue('');
+      setPwConfirm('');
+      setStatusMessage({
+        type: 'success',
+        text: `Password updated. Any device signed in as ${pwTarget === 'super_admin' ? 'Super Admin' : 'Owner'} will need to sign in again.`,
+      });
+    } finally {
+      setIsSavingPw(false);
+    }
+  };
 
   if (activeRole !== 'super_admin' && activeRole !== 'owner') {
     return (
@@ -73,13 +116,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setIsSavingConfig(true);
     setStatusMessage(null);
     try {
-      await supabase.from('settings').upsert({
-        id: 'auth_config',
-        superAdminEmail: superAdminEmail.toLowerCase().trim(),
-        ownerEmail: ownerEmail.toLowerCase().trim(),
-        ownerName: ownerName.trim()
+      const result = await updateAuthConfig({
+        superAdminEmail,
+        ownerEmail,
+        ownerName,
       });
-      
+
+      if (!result.ok) {
+        setStatusMessage({ type: 'error', text: result.error || 'Failed to update credentials configuration.' });
+        return;
+      }
+
       await logActivity(userEmail, userName, activeRole, 'Updated Administrator Email Config', `Super Admin: ${superAdminEmail}, Owner: ${ownerEmail}`);
       setStatusMessage({ type: 'success', text: 'Administrator credentials configuration updated successfully!' });
     } catch (err: any) {
@@ -274,6 +321,72 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </form>
         </div>
+
+        {/* Card 1b: Account passwords */}
+        {activeRole === 'super_admin' && (
+          <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-4">
+            <div className="flex items-center space-x-2 text-indigo-600 border-b border-gray-100 pb-3">
+              <UserCheck className="w-5 h-5" />
+              <h3 className="text-base font-bold text-gray-900">Change Account Password</h3>
+            </div>
+
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Passwords are hashed inside the database and are never displayed
+              anywhere in this system. Changing a password signs that account
+              out on every device.
+            </p>
+
+            <form onSubmit={handleChangePassword} className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-700 uppercase mb-1">Account</label>
+                <select
+                  value={pwTarget}
+                  onChange={(e) => setPwTarget(e.target.value as 'super_admin' | 'owner')}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="super_admin">Super Admin</option>
+                  <option value="owner">Owner</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-700 uppercase mb-1">New Password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={pwValue}
+                  onChange={(e) => setPwValue(e.target.value)}
+                  placeholder="At least 8 characters"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-700 uppercase mb-1">Confirm Password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={pwConfirm}
+                  onChange={(e) => setPwConfirm(e.target.value)}
+                  placeholder="Re-enter password"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="md:col-span-3 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isSavingPw}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-xs transition-transform active:scale-98 disabled:opacity-50"
+                >
+                  {isSavingPw ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Card 2: Clean System */}

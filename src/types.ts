@@ -34,7 +34,6 @@ export interface Staff {
   // notification time, so it must be optional here to match reality.
   avatarUrl?: string;
   status?: 'active' | 'offline';
-  password?: string;
   createdAt?: string;
 }
 

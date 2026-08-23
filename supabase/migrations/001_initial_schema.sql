@@ -1,7 +1,25 @@
+-- ============================================================================
+-- 001 — INITIAL SCHEMA (HISTORICAL)
+-- ============================================================================
+-- Run 002_secure_auth_and_memos.sql after this file. 002 supersedes several
+-- decisions below and is what the application actually expects:
+--
+--   * staff.password and settings.superAdminPassword/ownerPassword are
+--     DROPPED by 002 and replaced with bcrypt hashes. Never reintroduce them.
+--   * The "Allow all ... USING (true)" policies below are NOT a security
+--     boundary — they let anyone holding the public anon key read and write
+--     every row. 002 revokes anon access to settings and villa_memos entirely
+--     and routes those through SECURITY DEFINER functions instead.
+--   * villa_memos is removed from the realtime publication by 002 because it
+--     carries gate and lockbox codes.
+--
+-- Kept for reference and for bootstrapping a brand new project.
+-- ============================================================================
+
 -- ========================================================
 -- SUPABASE SCHEMA SETUP FOR PD HOLIDAY VILLAS BOOKING SYSTEM
 -- Copy and paste this script into your Supabase SQL Editor
--- (https://supabase.com/dashboard/project/tcwrtxizwnbnttukfrir/sql/new)
+-- (Supabase Dashboard -> SQL Editor)
 -- ========================================================
 
 -- 1. Create properties table

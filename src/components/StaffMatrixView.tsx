@@ -6,6 +6,7 @@ import {
   ChevronLeft, Menu, Save, Loader2
 } from 'lucide-react';
 import { supabase, logActivity } from '../lib/supabase';
+import { createStaffMember, setAccountPassword } from '../lib/auth';
 import { format } from 'date-fns';
 
 interface StaffMatrixViewProps {
@@ -186,25 +187,27 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
       return;
     }
 
+    if (newStaffPassword.length < 8) {
+      setFormError('Password must be at least 8 characters.');
+      return;
+    }
+
     try {
-      const newStaffId = `staff-${Date.now()}`;
-      const defaultAvatar = `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 900000000)}?auto=format&fit=crop&w=150&q=80`;
-      
-      const newStaff: Staff = {
-        id: newStaffId,
+      // The password is hashed inside the database; it is never stored or
+      // transmitted in plaintext beyond this single call.
+      const result = await createStaffMember({
         name: newStaffName,
-        email: newStaffEmail.toLowerCase(),
+        email: newStaffEmail,
         phone: newStaffPhone,
         password: newStaffPassword,
-        role: 'staff',
-        assignedPropertyIds: [],
-        avatarUrl: newStaffAvatarUrl || defaultAvatar,
-        status: 'active',
-        createdAt: new Date().toISOString()
-      };
+        avatarUrl: newStaffAvatarUrl,
+      });
 
-      await supabase.from('staff').upsert(newStaff);
-      
+      if (!result.ok) {
+        setFormError(result.error || 'Failed to add staff member.');
+        return;
+      }
+
       // Log Activity
       await logActivity(
         userEmail,
@@ -250,8 +253,17 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
   const handleUpdatePassword = async (staffId: string, staffName: string) => {
     if (!editingStaffPassword) return;
 
+    if (editingStaffPassword.length < 8) {
+      alert('Password must be at least 8 characters.');
+      return;
+    }
+
     try {
-      await supabase.from('staff').update({ password: editingStaffPassword }).eq('id', staffId);
+      const result = await setAccountPassword(staffId, editingStaffPassword);
+      if (!result.ok) {
+        alert(result.error || 'Failed to update password.');
+        return;
+      }
 
       // Log Activity
       await logActivity(
@@ -388,13 +400,14 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Account Password (Backup) *</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Account Password *</label>
                 <input
                   type="password"
                   required
+                  minLength={8}
                   value={newStaffPassword}
                   onChange={(e) => setNewStaffPassword(e.target.value)}
-                  placeholder="sue123"
+                  placeholder="At least 8 characters"
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-hidden"
                 />
               </div>
