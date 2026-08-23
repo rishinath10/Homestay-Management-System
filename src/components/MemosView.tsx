@@ -4,7 +4,8 @@ import {
   FileText, Wifi, Tv, Key, Lock, Eye, EyeOff, Edit3, Save, Plus, 
   Trash2, Copy, Check, Shield, Menu, ChevronLeft, Building2, StickyNote, HelpCircle
 } from 'lucide-react';
-import { supabase, logActivity } from '../lib/supabase';
+import { logActivity } from '../lib/supabase';
+import { fetchVillaMemos, saveVillaMemo, deleteVillaMemo } from '../lib/auth';
 import { format } from 'date-fns';
 
 interface MemosViewProps {
@@ -83,56 +84,28 @@ export const MemosView: React.FC<MemosViewProps> = ({
   const [formNotes, setFormNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Supabase real-time listener & LocalStorage cache
-  useEffect(() => {
-    const fetchMemos = async () => {
-      let cached: VillaMemo[] = [];
-      try {
-        const raw = localStorage.getItem('pd_memos_cache');
-        if (raw) cached = JSON.parse(raw);
-      } catch (e) {}
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-      try {
-        const { data, error } = await supabase.from('villa_memos').select('*');
-        if (data && data.length > 0) {
-          const memoMap = new Map<string, VillaMemo>();
-          cached.forEach(m => memoMap.set(m.id, m));
-          (data as VillaMemo[]).forEach(m => memoMap.set(m.id, m));
-          const merged = Array.from(memoMap.values());
-          setMemos(merged);
-          try {
-            localStorage.setItem('pd_memos_cache', JSON.stringify(merged));
-          } catch (e) {}
-        } else if (cached.length > 0) {
-          setMemos(cached);
-        } else {
-          setMemos(DEFAULT_MEMOS);
-          try {
-            localStorage.setItem('pd_memos_cache', JSON.stringify(DEFAULT_MEMOS));
-          } catch (e) {}
-        }
-      } catch (err) {
-        console.warn('Failed to load villa memos:', err);
-        if (cached.length > 0) {
-          setMemos(cached);
-        } else {
-          setMemos(DEFAULT_MEMOS);
-        }
-      }
-    };
-    fetchMemos();
-
-    const channel = supabase
-      .channel('memos_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'villa_memos' }, () => {
-        fetchMemos();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+  // Memos hold wifi passwords, gate codes and lockbox codes. They are fetched
+  // through a database function that checks the caller's role and property
+  // assignments — the table itself is not readable with the anon key.
+  //
+  // They are deliberately NOT cached in localStorage: persisting door codes on
+  // a shared phone or tablet would defeat the access control above.
+  const reloadMemos = React.useCallback(async () => {
+    const { data, error } = await fetchVillaMemos();
+    if (error) {
+      console.warn('Failed to load villa memos:', error);
+      setLoadError('Could not load villa memos. Please sign in again if this persists.');
+      return;
+    }
+    setLoadError(null);
+    setMemos((data as VillaMemo[]) || []);
   }, []);
+
+  useEffect(() => {
+    reloadMemos();
+  }, [reloadMemos]);
 
   const togglePasswordVisibility = (key: string) => {
     setShowPasswords(prev => ({ ...prev, [key]: !prev[key] }));
@@ -197,28 +170,16 @@ export const MemosView: React.FC<MemosViewProps> = ({
         updatedBy: userName || userEmail
       };
 
-      // Instantly update local React state and LocalStorage cache
-      setMemos(prev => {
-        const existingIndex = prev.findIndex(m => m.id === memoId);
-        let updated: VillaMemo[];
-        if (existingIndex >= 0) {
-          updated = [...prev];
-          updated[existingIndex] = newMemo;
-        } else {
-          updated = [newMemo, ...prev];
-        }
-        try {
-          localStorage.setItem('pd_memos_cache', JSON.stringify(updated));
-        } catch (e) {}
-        return updated;
-      });
-
-      // Persist to Supabase asynchronously
-      try {
-        await supabase.from('villa_memos').upsert(newMemo);
-      } catch (dbErr) {
-        console.warn('Supabase villa_memos save notice:', dbErr);
+      // Write through the checked function, then adopt the stored row. Unlike
+      // the previous optimistic update, a rejected write no longer leaves the
+      // screen showing a memo that was never saved.
+      const { error: saveErr } = await saveVillaMemo(newMemo as unknown as Record<string, unknown>);
+      if (saveErr) {
+        alert(`Could not save memo: ${saveErr}`);
+        return;
       }
+
+      await reloadMemos();
 
       try {
         await logActivity(
@@ -246,19 +207,18 @@ export const MemosView: React.FC<MemosViewProps> = ({
     if (!isSuperAdmin) return;
     if (!window.confirm(`Are you sure you want to delete memo "${memo.title}"?`)) return;
 
-    setMemos(prev => {
-      const updated = prev.filter(m => m.id !== memo.id);
-      try {
-        localStorage.setItem('pd_memos_cache', JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
+    const { error } = await deleteVillaMemo(memo.id);
+    if (error) {
+      alert(`Could not delete memo: ${error}`);
+      return;
+    }
+
+    setMemos(prev => prev.filter(m => m.id !== memo.id));
 
     try {
-      await supabase.from('villa_memos').delete().eq('id', memo.id);
       await logActivity(userEmail, userName, activeRole, 'Deleted Villa Memo', `Memo: ${memo.title}`);
     } catch (err) {
-      console.warn('Delete memo remote notice:', err);
+      console.warn('Delete memo log notice:', err);
     }
   };
 

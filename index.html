@@ -2,54 +2,80 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- Pinch-zoom is intentionally left enabled: staff read dense booking
+         tables on small phones. Double-tap zoom jitter is suppressed via
+         `touch-action: manipulation` in index.css instead of locking scale. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-    <!-- Anti-Cache Meta Tags for Instant Deployment Refresh -->
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
+    <!-- Internal system: keep it out of search engines entirely. -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+    <meta name="googlebot" content="noindex, nofollow" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
 
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#1A73E8" />
     <meta name="application-name" content="PDHV System" />
-    <meta name="description" content="Homestay Booking & Management System for PDHV staff" />
+    <meta name="description" content="Internal booking and staff management system for PD Holiday Villas." />
 
     <!-- iOS PWA Support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="PDHV System" />
-    <link rel="apple-touch-icon" href="/logo.jpg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <!-- Icons -->
-    <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- PWA Fail-safe Auto-Recovery for Outdated Script Hashes -->
+
+    <!--
+      Fail-safe recovery for the case where a cached index.html references
+      asset hashes that no longer exist. Deliberately narrow:
+        - same-origin script/link failures only, so a flaky font CDN or a
+          third-party image cannot wipe the offline cache
+        - runs at most once per tab session
+        - clears caches but does NOT unregister the service worker, which
+          would otherwise destroy offline support on a single bad request
+    -->
     <script>
-      window.addEventListener('error', function(e) {
-        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
-          var hasReloaded = sessionStorage.getItem('pd_auto_recovered');
-          if (!hasReloaded) {
-            sessionStorage.setItem('pd_auto_recovered', 'true');
-            if ('caches' in window) {
-              caches.keys().then(function(names) {
-                names.forEach(function(n) { caches.delete(n); });
-              });
-            }
-            if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.getRegistrations().then(function(regs) {
-                regs.forEach(function(r) { r.unregister(); });
-              });
-            }
-            setTimeout(function() {
-              window.location.reload();
-            }, 500);
+      (function () {
+        window.addEventListener('error', function (e) {
+          var el = e.target;
+          if (!el || (el.tagName !== 'SCRIPT' && el.tagName !== 'LINK')) return;
+
+          var src = el.src || el.href || '';
+          if (!src) return;
+          try {
+            if (new URL(src, location.href).origin !== location.origin) return;
+          } catch (err) {
+            return;
           }
-        }
-      }, true);
+
+          if (sessionStorage.getItem('pd_auto_recovered')) return;
+          try {
+            sessionStorage.setItem('pd_auto_recovered', 'true');
+          } catch (err) {
+            return;
+          }
+
+          var done = function () {
+            setTimeout(function () { window.location.reload(); }, 300);
+          };
+
+          if ('caches' in window) {
+            caches.keys()
+              .then(function (names) {
+                return Promise.all(names.map(function (n) { return caches.delete(n); }));
+              })
+              .then(done, done);
+          } else {
+            done();
+          }
+        }, true);
+      })();
     </script>
     <title>PD Holiday Villas Management System</title>
   </head>

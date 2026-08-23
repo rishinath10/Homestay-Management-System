@@ -30,9 +30,10 @@ export interface Staff {
   telegramChatId?: string;
   role: Role;
   assignedPropertyIds: string[];
-  avatarUrl: string;
+  // Nullable in the database and absent from the fallback recipients built at
+  // notification time, so it must be optional here to match reality.
+  avatarUrl?: string;
   status?: 'active' | 'offline';
-  password?: string;
   createdAt?: string;
 }
 

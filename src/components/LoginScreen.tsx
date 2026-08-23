@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { ShieldAlert, Calendar, Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { Role, Staff } from '../types';
+import { signIn, AppSession } from '../lib/auth';
 
 interface LoginScreenProps {
-  onLoginSuccess: (user: { email: string; name: string; role: Role; staffObj: Staff | null }) => void;
+  onLoginSuccess: (user: AppSession) => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
@@ -30,130 +29,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     setIsLoading(true);
     setError(null);
 
-    const userEmail = emailInput.toLowerCase().trim();
-    const userPass = passwordInput.trim();
-
     try {
-      // 1. Configured Admin & Owner Credentials
-      let superAdminEmail = 'rishinathsai@gmail.com';
-      let superAdminPass = 'admin123';
-      let ownerEmail = 'pdholidayvillas@gmail.com';
-      let ownerPass = 'jeff123';
-      let ownerName = 'Jeff';
+      // Credentials are verified inside the database against a bcrypt hash.
+      // The browser never receives a password, a hash, or any other account's
+      // record, so a failed attempt reveals nothing about who exists.
+      const result = await signIn(emailInput, passwordInput);
 
-      try {
-        const { data: settingsSnap } = await supabase.from('settings').select('*').eq('id', 'auth_config').single();
-        if (settingsSnap) {
-          superAdminEmail = (settingsSnap.superAdminEmail || superAdminEmail).toLowerCase();
-          superAdminPass = settingsSnap.superAdminPassword || superAdminPass;
-          ownerEmail = (settingsSnap.ownerEmail || ownerEmail).toLowerCase();
-          ownerPass = settingsSnap.ownerPassword || ownerPass;
-          ownerName = settingsSnap.ownerName || ownerName;
-        }
-      } catch (err) {
-        console.warn('Using default credentials config:', err);
+      if (result.ok && result.session) {
+        onLoginSuccess(result.session);
+      } else {
+        setError(result.error || 'Invalid email or password.');
       }
-
-      // Check Super Admin Login
-      if (userEmail === superAdminEmail) {
-        if (userPass === superAdminPass) {
-          onLoginSuccess({
-            email: userEmail,
-            name: 'Super Admin',
-            role: 'super_admin',
-            staffObj: null
-          });
-          setIsLoading(false);
-          return;
-        } else {
-          setError('Invalid Password: Please check your password and try again.');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Check Owner Login
-      if (userEmail === ownerEmail) {
-        if (userPass === ownerPass) {
-          onLoginSuccess({
-            email: userEmail,
-            name: ownerName,
-            role: 'owner',
-            staffObj: null
-          });
-          setIsLoading(false);
-          return;
-        } else {
-          setError('Invalid Password: Please check your password and try again.');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Check Staff Login from Supabase Database
-      let staffData: Staff | null = null;
-      try {
-        const { data } = await supabase.from('staff').select('*').eq('email', userEmail);
-        if (data && data.length > 0) {
-          staffData = data[0] as Staff;
-        }
-      } catch (e) {}
-
-      // Hardcoded fallback checks for default staff Sue & Yati if not yet in database
-      if (!staffData && userEmail === 'cikrayau00@gmail.com') {
-        staffData = {
-          id: 'staff-1',
-          name: 'Sue',
-          email: 'cikrayau00@gmail.com',
-          phone: '+60123456789',
-          role: 'staff',
-          assignedPropertyIds: ['prop-1', 'prop-2'],
-          avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80',
-          password: 'sue123'
-        };
-      }
-
-      if (!staffData && userEmail === 'noorhayatiariffin18@gmail.com') {
-        staffData = {
-          id: 'staff-2',
-          name: 'Yati',
-          email: 'noorhayatiariffin18@gmail.com',
-          phone: '+60198765432',
-          role: 'staff',
-          assignedPropertyIds: ['prop-3', 'prop-4', 'prop-5'],
-          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-          password: 'yati123'
-        };
-      }
-
-      // Validate Staff Credentials
-      if (staffData) {
-        const passInDb = staffData.password || '';
-        const lowerInputPass = userPass.toLowerCase();
-        const lowerDbPass = passInDb.toLowerCase();
-        const defaultFallbackPass = (staffData.email === 'cikrayau00@gmail.com' ? 'sue123' : 'yati123').toLowerCase();
-        const altFallbackPass = (staffData.email === 'cikrayau00@gmail.com' ? 'sue_123' : 'yati_123').toLowerCase();
-
-        if (lowerInputPass === lowerDbPass || lowerInputPass === defaultFallbackPass || lowerInputPass === altFallbackPass) {
-          onLoginSuccess({
-            email: staffData.email,
-            name: staffData.name,
-            role: 'staff',
-            staffObj: staffData
-          });
-          setIsLoading(false);
-          return;
-        } else {
-          setError('Invalid Password: Please check your password and try again.');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      setError(`Access Denied: The account (${userEmail}) is not authorized in this system.`);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'An error occurred during sign in.');
+      setError(err?.message || 'An error occurred during sign in.');
     } finally {
       setIsLoading(false);
     }

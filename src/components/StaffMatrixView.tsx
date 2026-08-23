@@ -6,6 +6,7 @@ import {
   ChevronLeft, Menu, Save, Loader2
 } from 'lucide-react';
 import { supabase, logActivity } from '../lib/supabase';
+import { createStaffMember, setAccountPassword } from '../lib/auth';
 import { format } from 'date-fns';
 
 interface StaffMatrixViewProps {
@@ -13,6 +14,8 @@ interface StaffMatrixViewProps {
   properties: Property[];
   onUpdateStaffPropertyAccess: (staffId: string, propertyIds: string[]) => Promise<void>;
   activeRole: Role;
+  userEmail: string;
+  userName: string;
   onBackToCalendar?: () => void;
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
@@ -23,6 +26,8 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
   properties,
   onUpdateStaffPropertyAccess,
   activeRole,
+  userEmail,
+  userName,
   onBackToCalendar,
   isSidebarOpen,
   onToggleSidebar
@@ -119,27 +124,54 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
     setLocalMatrix(matrix);
   };
 
-  // Fetch activity logs in real-time
+  // Activity logs are only loaded when the Logs tab is actually open, and the
+  // query is capped. Previously this fetched the entire unbounded table on
+  // mount and re-fetched it on every single log write — and because almost
+  // every user action writes a log, that was a self-sustaining read loop.
+  const ACTIVITY_LOG_LIMIT = 200;
+
   useEffect(() => {
+    if (activeTab !== 'logs') return;
+
+    let cancelled = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
     const fetchLogs = async () => {
       try {
-        const { data } = await supabase.from('activity_logs').select('*').order('timestamp', { ascending: false });
-        if (data) setLogs(data as ActivityLog[]);
+        const { data, error } = await supabase
+          .from('activity_logs')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(ACTIVITY_LOG_LIMIT);
+        if (error) {
+          console.warn('Failed to load activity logs:', error.message);
+          return;
+        }
+        if (data && !cancelled) setLogs(data as ActivityLog[]);
       } catch (err) {
         console.warn('Failed to load activity logs:', err);
       }
     };
+
     fetchLogs();
+
+    // Coalesce bursts of log writes into at most one refetch every 5s.
+    const scheduleRefresh = () => {
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(fetchLogs, 5000);
+    };
 
     const channel = supabase
       .channel('activity_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, fetchLogs)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_logs' }, scheduleRefresh)
       .subscribe();
 
     return () => {
+      cancelled = true;
+      clearTimeout(refreshTimer);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [activeTab]);
 
   const handleAddStaffSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,30 +187,32 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
       return;
     }
 
+    if (newStaffPassword.length < 8) {
+      setFormError('Password must be at least 8 characters.');
+      return;
+    }
+
     try {
-      const newStaffId = `staff-${Date.now()}`;
-      const defaultAvatar = `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 900000000)}?auto=format&fit=crop&w=150&q=80`;
-      
-      const newStaff: Staff = {
-        id: newStaffId,
+      // The password is hashed inside the database; it is never stored or
+      // transmitted in plaintext beyond this single call.
+      const result = await createStaffMember({
         name: newStaffName,
-        email: newStaffEmail.toLowerCase(),
+        email: newStaffEmail,
         phone: newStaffPhone,
         password: newStaffPassword,
-        role: 'staff',
-        assignedPropertyIds: [],
-        avatarUrl: newStaffAvatarUrl || defaultAvatar,
-        status: 'active',
-        createdAt: new Date().toISOString()
-      };
+        avatarUrl: newStaffAvatarUrl,
+      });
 
-      await supabase.from('staff').upsert(newStaff);
-      
+      if (!result.ok) {
+        setFormError(result.error || 'Failed to add staff member.');
+        return;
+      }
+
       // Log Activity
       await logActivity(
-        'admin@pdvillas.com',
-        'Super Admin',
-        'super_admin',
+        userEmail,
+        userName,
+        activeRole,
         'Added Staff Member',
         `Staff Name: ${newStaffName}, Email: ${newStaffEmail}`
       );
@@ -205,9 +239,9 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
       
       // Log Activity
       await logActivity(
-        'admin@pdvillas.com',
-        'Super Admin',
-        'super_admin',
+        userEmail,
+        userName,
+        activeRole,
         'Deleted Staff Member',
         `Staff Name: ${staff.name}, Email: ${staff.email}`
       );
@@ -219,14 +253,23 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
   const handleUpdatePassword = async (staffId: string, staffName: string) => {
     if (!editingStaffPassword) return;
 
+    if (editingStaffPassword.length < 8) {
+      alert('Password must be at least 8 characters.');
+      return;
+    }
+
     try {
-      await supabase.from('staff').update({ password: editingStaffPassword }).eq('id', staffId);
+      const result = await setAccountPassword(staffId, editingStaffPassword);
+      if (!result.ok) {
+        alert(result.error || 'Failed to update password.');
+        return;
+      }
 
       // Log Activity
       await logActivity(
-        'admin@pdvillas.com',
-        'Super Admin',
-        'super_admin',
+        userEmail,
+        userName,
+        activeRole,
         'Changed Staff Password',
         `Staff Name: ${staffName}, New Password set`
       );
@@ -357,13 +400,14 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Account Password (Backup) *</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Account Password *</label>
                 <input
                   type="password"
                   required
+                  minLength={8}
                   value={newStaffPassword}
                   onChange={(e) => setNewStaffPassword(e.target.value)}
-                  placeholder="sue123"
+                  placeholder="At least 8 characters"
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-hidden"
                 />
               </div>
@@ -483,16 +527,16 @@ export const StaffMatrixView: React.FC<StaffMatrixViewProps> = ({
                               </div>
                             ) : (
                               <div className="flex items-center space-x-1.5 mt-2 text-[11px] text-gray-600">
-                                <span className="font-semibold text-slate-500">Backup Key:</span>
-                                <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-700">{st.password || 'none'}</span>
+                                <span className="font-semibold text-slate-500">Password:</span>
+                                <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-400">••••••••</span>
                                 <button
                                   onClick={() => {
                                     setEditingStaffId(st.id);
-                                    setEditingStaffPassword(st.password || '');
+                                    setEditingStaffPassword('');
                                   }}
                                   className="text-purple-600 hover:text-purple-800 text-[10px] font-bold hover:underline shrink-0"
                                 >
-                                  Edit
+                                  Reset
                                 </button>
                               </div>
                             )

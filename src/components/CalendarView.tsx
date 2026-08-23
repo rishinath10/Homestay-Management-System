@@ -156,57 +156,84 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const lastWheelTime = React.useRef<number>(0);
+  const isTransitioningRef = React.useRef(isTransitioning);
+  const viewModeRef = React.useRef(viewMode);
+  const onNavigateDateRef = React.useRef(onNavigateDate);
+
+  React.useEffect(() => { isTransitioningRef.current = isTransitioning; }, [isTransitioning]);
+  React.useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
+  React.useEffect(() => { onNavigateDateRef.current = onNavigateDate; }, [onNavigateDate]);
 
   React.useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const handleWheelRaw = (e: WheelEvent) => {
-      if (viewMode !== 'month') return;
+      if (viewModeRef.current !== 'month') return;
+      if (isTransitioningRef.current) return;
 
-      // Check both horizontal deltaX (Mac trackpad swipe left/right) and vertical deltaY
-      const deltaX = e.deltaX;
-      const deltaY = e.deltaY;
-      const primaryDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
+      const dx = e.deltaX;
+      const dy = e.deltaY;
+      const primaryDelta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
 
-      const threshold = 20; // Sensitivity threshold for gesture responsiveness
+      const threshold = 20;
       if (Math.abs(primaryDelta) < threshold) return;
 
-      // Prevent default browser history navigation / vertical scroll in month view
-      e.preventDefault();
-
-      if (isTransitioning) return;
-
       const now = Date.now();
-      if (now - lastWheelTime.current < 500) {
-        return; // Rate limit gesture month transitions
-      }
+      if (now - lastWheelTime.current < 500) return;
 
-      // Trackpad swipe right / scroll down (positive delta) -> Next Month
-      // Trackpad swipe left / scroll up (negative delta) -> Prev Month
-      if (primaryDelta > 0 && onNavigateDate) {
+      const nav = onNavigateDateRef.current;
+      if (!nav) return;
+
+      if (primaryDelta > 0) {
         lastWheelTime.current = now;
         setUseTransition(true);
         setSlideOffset(-66.666);
         setIsTransitioning(true);
-        onNavigateDate('next');
-      } else if (primaryDelta < 0 && onNavigateDate) {
+        nav('next');
+      } else if (primaryDelta < 0) {
         lastWheelTime.current = now;
         setUseTransition(true);
         setSlideOffset(0);
         setIsTransitioning(true);
-        onNavigateDate('prev');
+        nav('prev');
       }
     };
 
-    container.addEventListener('wheel', handleWheelRaw, { passive: false });
+    container.addEventListener('wheel', handleWheelRaw, { passive: true });
     return () => {
       container.removeEventListener('wheel', handleWheelRaw);
     };
-  }, [viewMode, isTransitioning, onNavigateDate]);
+  }, []);
 
   // Filter bookings by selected properties
-  const filteredBookings = bookings.filter((b) => selectedPropertyIds.includes(b.propertyId));
+  const selectedPropertySet = React.useMemo(() => new Set(selectedPropertyIds), [selectedPropertyIds]);
+  const filteredBookings = React.useMemo(
+    () => bookings.filter((b) => selectedPropertySet.has(b.propertyId)),
+    [bookings, selectedPropertySet]
+  );
+
+  // Pre-build a date-to-bookings index for O(1) day lookups
+  const bookingsByDate = React.useMemo(() => {
+    const map = new Map<string, Booking[]>();
+    for (const b of filteredBookings) {
+      const start = b.bookingDate;
+      const end = b.endDate || b.bookingDate;
+      // Index each date the booking spans (capped at 90 days for safety)
+      let d = parseISO(start);
+      const endD = parseISO(end);
+      let count = 0;
+      while (d <= endD && count < 90) {
+        const key = format(d, 'yyyy-MM-dd');
+        const arr = map.get(key);
+        if (arr) arr.push(b);
+        else map.set(key, [b]);
+        d = addDays(d, 1);
+        count++;
+      }
+    }
+    return map;
+  }, [filteredBookings]);
 
   // Helper map for fast property lookups
   const propertyMap = React.useMemo(() => {
@@ -406,14 +433,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     const isToday = isSameDay(day, new Date());
                     const isSelectedDay = selectedDateStr === dateStr;
 
-                    // Bookings active on this day
-                    const dayBookings = filteredBookings.filter((b) => {
-                      if (b.bookingDate === dateStr) return true;
-                      if (b.endDate) {
-                        return dateStr >= b.bookingDate && dateStr <= b.endDate;
-                      }
-                      return false;
-                    });
+                    const dayBookings = bookingsByDate.get(dateStr) || [];
 
                     const todayStr = format(new Date(), 'yyyy-MM-dd');
                     const isPastDay = dateStr < todayStr;
@@ -432,8 +452,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             ? 'bg-gray-100/70 text-gray-400 opacity-60 cursor-not-allowed'
                             : isSelectedDay
                             ? 'bg-yellow-100/90 ring-2 ring-yellow-400 z-10'
-                            : !isCurrentMonth
-                            ? 'bg-gray-50/40 text-gray-400'
                             : 'bg-white hover:bg-yellow-50/60'
                         }`}
                       >
@@ -445,9 +463,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 ? 'bg-blue-600 text-white shadow-xs font-extrabold'
                                 : isSelectedDay
                                 ? 'bg-yellow-400 text-yellow-950 font-extrabold shadow-2xs'
-                                : isCurrentMonth
-                                ? 'text-gray-800'
-                                : 'text-gray-400'
+                                : isPastDay
+                                ? 'text-gray-400'
+                                : 'text-gray-800'
                             }`}
                           >
                             {format(day, 'd') === '1' ? format(day, 'd MMM') : format(day, 'd')}

@@ -7,16 +7,27 @@ import {
   logActivity
 } from './lib/supabase';
 import { LoginScreen } from './components/LoginScreen';
+import { loadSession, signOut, AppSession } from './lib/auth';
 import { Property, Staff, Booking, NotificationLog, Role, CalendarViewMode } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { CalendarView } from './components/CalendarView';
-import { PropertiesView } from './components/PropertiesView';
-import { StaffMatrixView } from './components/StaffMatrixView';
-import { MemosView } from './components/MemosView';
-import { NotificationLogsView } from './components/NotificationLogsView';
-import { ICalSyncView } from './components/ICalSyncView';
-import { SettingsView } from './components/SettingsView';
+
+// Secondary views are code-split: the calendar is the landing screen and the
+// only one most staff ever open, so these chunks load on first navigation
+// rather than blocking initial paint.
+const PropertiesView = React.lazy(() =>
+  import('./components/PropertiesView').then(m => ({ default: m.PropertiesView })));
+const StaffMatrixView = React.lazy(() =>
+  import('./components/StaffMatrixView').then(m => ({ default: m.StaffMatrixView })));
+const MemosView = React.lazy(() =>
+  import('./components/MemosView').then(m => ({ default: m.MemosView })));
+const NotificationLogsView = React.lazy(() =>
+  import('./components/NotificationLogsView').then(m => ({ default: m.NotificationLogsView })));
+const ICalSyncView = React.lazy(() =>
+  import('./components/ICalSyncView').then(m => ({ default: m.ICalSyncView })));
+const SettingsView = React.lazy(() =>
+  import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
 import { BookingModal } from './components/BookingModal';
 import { BookingDetailModal } from './components/BookingDetailModal';
 import { Preloader } from './components/Preloader';
@@ -35,10 +46,9 @@ export default function App() {
   const [showPreloader, setShowPreloader] = useState(true);
 
   // User Session State
-  const [sessionUser, setSessionUser] = useState<{ email: string; name: string; role: Role; staffObj: Staff | null } | null>(() => {
-    const stored = localStorage.getItem('pd_session');
-    return stored ? JSON.parse(stored) : null;
-  });
+  // loadSession() validates the stored value and treats anything corrupt as
+  // logged out, so a bad localStorage entry cannot lock anyone out of the app.
+  const [sessionUser, setSessionUser] = useState<AppSession | null>(() => loadSession());
 
   // Navigation & View States
   const [activeTab, setActiveTab] = useState<'calendar' | 'properties' | 'staff' | 'memos' | 'ical' | 'notifications' | 'settings'>('calendar');
@@ -101,7 +111,6 @@ export default function App() {
   const bookingsJsonRef = useRef<string>('');
   const notifsJsonRef = useRef<string>('');
   const fetchAllDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  const isFetchingRef = useRef<boolean>(false);
   const activeRoleRef = useRef(activeRole);
   const activeStaffRef = useRef(activeStaff);
   const staffListRef = useRef(staffList);
@@ -112,138 +121,267 @@ export default function App() {
     staffListRef.current = staffList;
   }, [activeRole, activeStaff, staffList]);
 
-  // 1. Fetch All Data helper (component-level function accessible by all handlers)
-  const fetchAllData = React.useCallback(async () => {
-    if (isFetchingRef.current) return;
-    isFetchingRef.current = true;
+  // ---------------------------------------------------------------
+  // Granular per-table fetchers.
+  // Each table refreshes independently so a change to one table does
+  // not trigger a full four-table read. Each has its own in-flight
+  // guard so overlapping triggers collapse into a single request.
+  // ---------------------------------------------------------------
+  const inFlightRef = useRef<Record<string, boolean>>({});
+
+  const fetchProperties = React.useCallback(async () => {
+    if (inFlightRef.current.properties) return;
+    inFlightRef.current.properties = true;
     try {
-      const { data: pData } = await supabase.from('properties').select('*');
-      if (pData && pData.length > 0) {
-        const uniquePropsMap = new Map<string, Property>();
-        (pData as Property[]).forEach(p => uniquePropsMap.set(p.id, p));
-        const newProps = Array.from(uniquePropsMap.values());
-        const propsStr = JSON.stringify(newProps);
-        if (propsStr !== propertiesJsonRef.current) {
-          propertiesJsonRef.current = propsStr;
-          setProperties(newProps);
-          try {
-            localStorage.setItem('pd_properties_cache', JSON.stringify(newProps));
-          } catch (e) {}
-        }
-      }
+      const { data, error } = await supabase.from('properties').select('*');
+      if (error) { console.warn('Properties fetch error:', error.message); return; }
+      if (!data || data.length === 0) return;
 
-      const { data: sData } = await supabase.from('staff').select('*');
-      if (sData && sData.length > 0) {
-        const staffStr = JSON.stringify(sData);
-        if (staffStr !== staffJsonRef.current) {
-          staffJsonRef.current = staffStr;
-          setStaffList(sData as Staff[]);
-        }
-      }
-
-      const { data: bData } = await supabase.from('bookings').select('*');
-      const remoteBookings = (bData as Booking[]) || [];
-      const bookingsStr = JSON.stringify(remoteBookings);
-
-      if (bookingsStr !== bookingsJsonRef.current) {
-        if (initialLoadDoneRef.current) {
-          const curRole = activeRoleRef.current;
-          const curStaff = activeStaffRef.current;
-          const curStaffList = staffListRef.current;
-
-          remoteBookings.forEach(b => {
-            if (!knownBookingIdsRef.current.has(b.id)) {
-              knownBookingIdsRef.current.add(b.id);
-              
-              const isAssigned = (curStaff && b.assignedStaffId === curStaff.id) ||
-                (curStaff && curStaff.assignedPropertyIds?.includes(b.propertyId)) ||
-                (curRole === 'staff');
-
-              if (isAssigned) {
-                const staffRecipient = curStaff || curStaffList.find(s => s.id === b.assignedStaffId) || {
-                  id: 'staff-1',
-                  name: b.assignedStaffName || 'Staff Member',
-                  email: '',
-                  phone: '',
-                  role: 'staff',
-                  assignedPropertyIds: [b.propertyId]
-                };
-                triggerNewBookingPushAlert(b, staffRecipient);
-              }
-            }
-          });
-        } else {
-          remoteBookings.forEach(b => knownBookingIdsRef.current.add(b.id));
-          initialLoadDoneRef.current = true;
-        }
-
-        bookingsJsonRef.current = bookingsStr;
-        setBookings(remoteBookings);
+      const uniquePropsMap = new Map<string, Property>();
+      (data as Property[]).forEach(p => uniquePropsMap.set(p.id, p));
+      const newProps = Array.from(uniquePropsMap.values());
+      const propsStr = JSON.stringify(newProps);
+      if (propsStr !== propertiesJsonRef.current) {
+        propertiesJsonRef.current = propsStr;
+        setProperties(newProps);
         try {
-          localStorage.setItem('pd_bookings_cache', JSON.stringify(remoteBookings));
+          localStorage.setItem('pd_properties_cache', propsStr);
         } catch (e) {}
       }
-
-      const { data: nData } = await supabase.from('notifications').select('*').order('timestamp', { ascending: false }).limit(50);
-      if (nData) {
-        const notifsStr = JSON.stringify(nData);
-        if (notifsStr !== notifsJsonRef.current) {
-          notifsJsonRef.current = notifsStr;
-          setNotificationLogs(nData as NotificationLog[]);
-        }
-      }
     } catch (e) {
-      console.warn('Data load notice:', e);
+      console.warn('Properties load notice:', e);
     } finally {
-      isFetchingRef.current = false;
+      inFlightRef.current.properties = false;
     }
   }, []);
 
+  const fetchStaff = React.useCallback(async () => {
+    if (inFlightRef.current.staff) return;
+    inFlightRef.current.staff = true;
+    try {
+      // Password is never needed client-side after login — omit it from the projection.
+      const { data, error } = await supabase
+        .from('staff')
+        .select('id,name,email,phone,telegramChatId,role,assignedPropertyIds,avatarUrl,status,createdAt');
+      if (error) { console.warn('Staff fetch error:', error.message); return; }
+      if (!data || data.length === 0) return;
+
+      const staffStr = JSON.stringify(data);
+      if (staffStr !== staffJsonRef.current) {
+        staffJsonRef.current = staffStr;
+        setStaffList(data as Staff[]);
+      }
+    } catch (e) {
+      console.warn('Staff load notice:', e);
+    } finally {
+      inFlightRef.current.staff = false;
+    }
+  }, []);
+
+  const fetchBookings = React.useCallback(async () => {
+    if (inFlightRef.current.bookings) return;
+    inFlightRef.current.bookings = true;
+    try {
+      const { data, error } = await supabase.from('bookings').select('*');
+      if (error) { console.warn('Bookings fetch error:', error.message); return; }
+
+      const remoteBookings = (data as Booking[]) || [];
+      const bookingsStr = JSON.stringify(remoteBookings);
+      if (bookingsStr === bookingsJsonRef.current) return;
+
+      if (initialLoadDoneRef.current) {
+        const curRole = activeRoleRef.current;
+        const curStaff = activeStaffRef.current;
+        const curStaffList = staffListRef.current;
+
+        remoteBookings.forEach(b => {
+          if (!knownBookingIdsRef.current.has(b.id)) {
+            knownBookingIdsRef.current.add(b.id);
+
+            const isAssigned = (curStaff && b.assignedStaffId === curStaff.id) ||
+              (curStaff && curStaff.assignedPropertyIds?.includes(b.propertyId)) ||
+              (curRole === 'staff');
+
+            if (isAssigned) {
+              const staffRecipient = curStaff || curStaffList.find(s => s.id === b.assignedStaffId) || {
+                id: 'staff-1',
+                name: b.assignedStaffName || 'Staff Member',
+                email: '',
+                phone: '',
+                role: 'staff',
+                assignedPropertyIds: [b.propertyId]
+              };
+              triggerNewBookingPushAlert(b, staffRecipient);
+            }
+          }
+        });
+      } else {
+        remoteBookings.forEach(b => knownBookingIdsRef.current.add(b.id));
+        initialLoadDoneRef.current = true;
+      }
+
+      bookingsJsonRef.current = bookingsStr;
+      setBookings(remoteBookings);
+      try {
+        localStorage.setItem('pd_bookings_cache', bookingsStr);
+      } catch (e) {}
+    } catch (e) {
+      console.warn('Bookings load notice:', e);
+    } finally {
+      inFlightRef.current.bookings = false;
+    }
+  }, []);
+
+  const fetchNotifications = React.useCallback(async () => {
+    if (inFlightRef.current.notifications) return;
+    inFlightRef.current.notifications = true;
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(50);
+      if (error) { console.warn('Notifications fetch error:', error.message); return; }
+      if (!data) return;
+
+      const notifsStr = JSON.stringify(data);
+      if (notifsStr !== notifsJsonRef.current) {
+        notifsJsonRef.current = notifsStr;
+        setNotificationLogs(data as NotificationLog[]);
+      }
+    } catch (e) {
+      console.warn('Notifications load notice:', e);
+    } finally {
+      inFlightRef.current.notifications = false;
+    }
+  }, []);
+
+  const fetchAllData = React.useCallback(async () => {
+    await Promise.all([
+      fetchProperties(),
+      fetchStaff(),
+      fetchBookings(),
+      fetchNotifications(),
+    ]);
+  }, [fetchProperties, fetchStaff, fetchBookings, fetchNotifications]);
+
+  const fetchPropertiesRef = useRef(fetchProperties);
+  const fetchStaffRef = useRef(fetchStaff);
+  const fetchBookingsRef = useRef(fetchBookings);
+  const fetchNotificationsRef = useRef(fetchNotifications);
+
   useEffect(() => {
     fetchAllDataRef.current = fetchAllData;
-  }, [fetchAllData]);
+    fetchPropertiesRef.current = fetchProperties;
+    fetchStaffRef.current = fetchStaff;
+    fetchBookingsRef.current = fetchBookings;
+    fetchNotificationsRef.current = fetchNotifications;
+  }, [fetchAllData, fetchProperties, fetchStaff, fetchBookings, fetchNotifications]);
 
   // Initial Setup: Seed Supabase & Listeners (Runs only once on mount)
   useEffect(() => {
     seedInitialSupabaseData();
 
-    // Online/Offline & Visibility Listeners
+    // Coalesce bursts of realtime events into one read per table.
+    const debounceTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+    const scheduleFetch = (key: string, fn: () => void, delay = 400) => {
+      clearTimeout(debounceTimers[key]);
+      debounceTimers[key] = setTimeout(fn, delay);
+    };
+
+    // Refetching on every tab focus is wasteful when someone is switching
+    // between tabs constantly. Realtime already keeps state current, so
+    // this only acts as a catch-up after the tab has been away a while.
+    let lastVisibilitySync = Date.now();
+    const VISIBILITY_SYNC_MIN_GAP = 60_000;
+
     const handleOnline = () => {
       setIsOnline(true);
       fetchAllDataRef.current();
     };
     const handleOffline = () => setIsOnline(false);
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchAllDataRef.current();
-      }
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastVisibilitySync < VISIBILITY_SYNC_MIN_GAP) return;
+      lastVisibilitySync = now;
+      fetchAllDataRef.current();
     };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    window.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     fetchAllDataRef.current();
 
-    // 60-second fallback polling interval
+    // Safety-net poll only. Realtime is the primary sync path; this exists
+    // purely to recover from a silently dead socket. It is skipped entirely
+    // while the tab is hidden or the device is offline.
+    const POLL_INTERVAL = 5 * 60 * 1000;
     const pollingInterval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (!navigator.onLine) return;
       fetchAllDataRef.current();
-    }, 60000);
+    }, POLL_INTERVAL);
 
     let currentChannel: any = null;
     let retryTimer: any = null;
     let retryCount = 0;
+    let disposed = false;
+    let reconnectPending = false;
+
+    const MAX_RETRY_DELAY = 60_000;
+
+    const teardown = (ch: any) => {
+      if (!ch) return;
+      try {
+        supabase.removeChannel(ch);
+      } catch (e) {
+        console.warn('Channel teardown notice:', e);
+      }
+    };
+
+    // Reconnect must never run synchronously inside the subscribe() status
+    // callback. removeChannel() there re-enters the realtime client's own
+    // trigger() -> onClose() -> trigger() path and overflows the call stack,
+    // which takes the whole tab down. Defer the teardown to a fresh task and
+    // guard against overlapping reconnects.
+    const scheduleReconnect = () => {
+      if (disposed || reconnectPending) return;
+      reconnectPending = true;
+
+      const dying = currentChannel;
+      currentChannel = null;
+
+      setTimeout(() => {
+        teardown(dying);
+        if (disposed) return;
+
+        fetchAllDataRef.current();
+
+        const delay = Math.min(5000 * Math.pow(2, retryCount), MAX_RETRY_DELAY);
+        retryCount++;
+        retryTimer = setTimeout(() => {
+          reconnectPending = false;
+          if (!disposed) setupChannel();
+        }, delay);
+      }, 0);
+    };
 
     const setupChannel = () => {
+      if (disposed) return;
+
       if (currentChannel) {
-        supabase.removeChannel(currentChannel);
+        teardown(currentChannel);
         currentChannel = null;
       }
 
       const channel = supabase
         .channel('realtime_tables_sync')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'properties' }, () => fetchAllDataRef.current())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'staff' }, () => fetchAllDataRef.current())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'properties' },
+          () => scheduleFetch('properties', () => fetchPropertiesRef.current()))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'staff' },
+          () => scheduleFetch('staff', () => fetchStaffRef.current()))
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, (payload) => {
           const newB = payload.new as Booking;
           const curRole = activeRoleRef.current;
@@ -268,27 +406,21 @@ export default function App() {
               triggerNewBookingPushAlert(newB, staffRecipient);
             }
           }
-          fetchAllDataRef.current();
+          scheduleFetch('bookings', () => fetchBookingsRef.current());
         })
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' }, () => fetchAllDataRef.current())
-        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'bookings' }, () => fetchAllDataRef.current())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => fetchAllDataRef.current());
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' },
+          () => scheduleFetch('bookings', () => fetchBookingsRef.current()))
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'bookings' },
+          () => scheduleFetch('bookings', () => fetchBookingsRef.current()))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' },
+          () => scheduleFetch('notifications', () => fetchNotificationsRef.current(), 2000));
 
       channel.subscribe((status: string) => {
-        console.log(`[realtime] bookings sync channel status: ${status}`);
         if (status === 'SUBSCRIBED') {
           retryCount = 0;
+          reconnectPending = false;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          if (currentChannel) {
-            supabase.removeChannel(currentChannel);
-            currentChannel = null;
-          }
-          fetchAllDataRef.current();
-          const delay = Math.min(5000 * Math.pow(2, retryCount), 60000);
-          retryCount++;
-          retryTimer = setTimeout(() => {
-            setupChannel();
-          }, delay);
+          scheduleReconnect();
         }
       });
 
@@ -303,14 +435,15 @@ export default function App() {
     });
 
     return () => {
+      disposed = true;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(pollingInterval);
+      Object.values(debounceTimers).forEach(clearTimeout);
       if (retryTimer) clearTimeout(retryTimer);
-      if (currentChannel) {
-        supabase.removeChannel(currentChannel);
-      }
+      teardown(currentChannel);
+      currentChannel = null;
     };
   }, []);
 
@@ -355,16 +488,22 @@ export default function App() {
         await logActivity(sessionUser.email, sessionUser.name, sessionUser.role, 'Logged Out').catch(() => {});
       } catch (e) {}
     }
-    localStorage.removeItem('pd_session');
+    // Revokes the session server-side as well as clearing it locally, so a
+    // copied token cannot keep being used after someone signs out.
+    await signOut();
     setSessionUser(null);
-    try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.warn('Supabase sign out error:', err);
-    }
     setTimeout(() => {
       setShowPreloader(false);
     }, 800);
+  };
+
+  // On phones the sidebar is an overlay, so it has to close after a selection
+  // to reveal the content behind it. On tablet and desktop it is a persistent
+  // column — closing it there just hides the navigation after every click.
+  const closeSidebarOnMobile = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
   };
 
   const handleSelectTab = (tab: typeof activeTab) => {
@@ -599,7 +738,7 @@ export default function App() {
         <LoginScreen
           onLoginSuccess={async (user) => {
             setShowPreloader(true);
-            localStorage.setItem('pd_session', JSON.stringify(user));
+            // signIn() has already persisted the session; just adopt it here.
             setSessionUser(user);
             await logActivity(user.email, user.name, user.role, 'Logged In').catch(() => {});
             setTimeout(() => {
@@ -645,14 +784,14 @@ export default function App() {
           activeTab={activeTab}
           onSelectTab={(tab) => {
             handleSelectTab(tab);
-            setIsSidebarOpen(false);
+            closeSidebarOnMobile();
           }}
           onCreateBookingClick={() => {
             setModalInitialDate('');
             setModalInitialPropertyId('');
             setEditingBooking(null);
             setIsBookingModalOpen(true);
-            setIsSidebarOpen(false);
+            closeSidebarOnMobile();
           }}
           properties={properties}
           selectedPropertyIds={selectedPropertyIds}
@@ -662,7 +801,7 @@ export default function App() {
           onSelectDate={(d) => {
             setCurrentDate(d);
             handleSelectTab('calendar');
-            setIsSidebarOpen(false);
+            closeSidebarOnMobile();
           }}
           activeRole={activeRole}
           activeStaff={activeStaff}
@@ -675,6 +814,13 @@ export default function App() {
 
         {/* Content Views */}
         <main className="flex-1 flex flex-col overflow-hidden bg-gray-50 pb-16 md:pb-0">
+          <React.Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center bg-gray-50">
+                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            }
+          >
           {activeTab === 'calendar' && (
             <div key="calendar" className="flex-1 flex flex-col overflow-hidden animate-fade-up">
               <CalendarView
@@ -726,6 +872,8 @@ export default function App() {
                 properties={properties}
                 onUpdateStaffPropertyAccess={handleUpdateStaffPropertyAccess}
                 activeRole={activeRole}
+                userEmail={sessionUser.email}
+                userName={sessionUser.name}
                 onBackToCalendar={() => handleSelectTab('calendar')}
                 isSidebarOpen={isSidebarOpen}
                 onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -785,6 +933,7 @@ export default function App() {
               />
             </div>
           )}
+          </React.Suspense>
         </main>
       </div>
 
