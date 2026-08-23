@@ -7,23 +7,33 @@ will lock the super admin and owner out of the system.
 
 ## 1. Run the security migration
 
-`supabase/migrations/002_secure_auth_and_memos.sql` moves password checking
-into the database and closes off direct access to the tables holding secrets.
+Two files, in order, both in the Supabase SQL Editor.
 
-**Before running it:**
+### 1a. Set the admin passwords
 
-Open the file and edit the two placeholders in **STEP 0**:
+Open `supabase/migrations/002a_set_admin_passwords.sql`. Replace the two
+marked values with real passwords (8+ characters):
 
 ```sql
-v_super_admin_password TEXT := 'CHANGE_ME_super_admin';
-v_owner_password       TEXT := 'CHANGE_ME_owner';
+"superAdminPasswordHash" = crypt('PutAdminPasswordHere', gen_salt('bf', 10)),
+"ownerPasswordHash"      = crypt('PutOwnerPasswordHere', gen_salt('bf', 10)),
 ```
 
-Use real passwords, at least 8 characters. The migration refuses to run while
-the placeholders are still there, so it will not silently leave a weak default
-in place.
+Paste the file into the SQL Editor and run it. The last statement reports back:
 
-**Then:** paste the whole file into the Supabase SQL Editor and run it.
+```
+super_admin_set | owner_set
+----------------+-----------
+ t              | t
+```
+
+Both must be `t` before continuing.
+
+### 1b. Run the main migration
+
+Paste `supabase/migrations/002_secure_auth_and_memos.sql` in and run it.
+Nothing in this file needs editing. If 1a was skipped it stops immediately
+with `Run 002a_set_admin_passwords.sql first` rather than half-applying.
 
 Existing staff (Sue, Yati) keep the passwords they already use — their stored
 passwords are hashed in place, not reset.

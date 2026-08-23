@@ -23,34 +23,27 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ============================================================================
--- STEP 0 — SET THE ADMIN AND OWNER PASSWORDS
---          >>> EDIT THE TWO VALUES BELOW BEFORE RUNNING THIS FILE <<<
+-- STEP 0 — PRECONDITION CHECK
+-- Run 002a_set_admin_passwords.sql before this file. This block confirms it
+-- happened; without it the super admin and owner would have no way to sign in
+-- once the plaintext columns are dropped further down.
 -- ============================================================================
 
 DO $$
-DECLARE
-  -- Replace both placeholders with the real passwords you want to use.
-  v_super_admin_password TEXT := 'CHANGE_ME_super_admin';
-  v_owner_password       TEXT := 'CHANGE_ME_owner';
 BEGIN
-  IF v_super_admin_password LIKE 'CHANGE_ME%' OR v_owner_password LIKE 'CHANGE_ME%' THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'settings'
+      AND column_name = 'superAdminPasswordHash'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.settings
+    WHERE id = 'auth_config'
+      AND "superAdminPasswordHash" IS NOT NULL
+      AND "ownerPasswordHash" IS NOT NULL
+  ) THEN
     RAISE EXCEPTION
-      'Set real passwords in STEP 0 before running this migration. The placeholder values are not accepted.';
+      'Run 002a_set_admin_passwords.sql first — the admin and owner password hashes are not set yet.';
   END IF;
-
-  ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "superAdminPasswordHash" TEXT;
-  ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS "ownerPasswordHash" TEXT;
-
-  INSERT INTO public.settings (id) VALUES ('auth_config')
-  ON CONFLICT (id) DO NOTHING;
-
-  UPDATE public.settings
-  SET "superAdminPasswordHash" = crypt(v_super_admin_password, gen_salt('bf', 10)),
-      "ownerPasswordHash"      = crypt(v_owner_password, gen_salt('bf', 10)),
-      "superAdminEmail"        = COALESCE("superAdminEmail", 'rishinathsai@gmail.com'),
-      "ownerEmail"             = COALESCE("ownerEmail", 'pdholidayvillas@gmail.com'),
-      "ownerName"              = COALESCE("ownerName", 'Jeff')
-  WHERE id = 'auth_config';
 END $$;
 
 -- ============================================================================
