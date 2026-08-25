@@ -264,6 +264,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return map;
   }, [filteredBookings]);
 
+  // Each villa gets a fixed vertical slot in every week row, so a villa's
+  // bookings always appear on the same line and can be scanned across the
+  // month. Previously bars were auto-placed by CSS Grid, which packed them
+  // greedily — two different villas could share a line while one villa's own
+  // consecutive bookings ended up on different ones.
+  const propertyRowIndex = React.useMemo(() => {
+    const idx = new Map<string, number>();
+    properties
+      .filter(p => selectedPropertySet.has(p.id))
+      .forEach((p, i) => idx.set(p.id, i));
+    return idx;
+  }, [properties, selectedPropertySet]);
+
   // Helper map for fast property lookups
   const propertyMap = React.useMemo(() => {
     const map = new Map<string, Property>();
@@ -439,10 +452,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     // on a phone or a landscape tablet left roughly 80px and hid bookings.
     //   mobile : 20px date row + 5 bars x 12px + 4 gaps x 2px + 2px  =  90px
     //   desktop: 24px date row + 5 bars x 18px + 4 gaps x 2px + 2px  = 124px
-    const maxBarsPerDay = Math.max(properties.length, 5);
+    // One line per selected villa, so the row must fit them all.
+    const villaLines = Math.max(propertyRowIndex.size, 1);
     const barH = isMobile ? 12 : 18;
     const dateRowH = isMobile ? 20 : 24;
-    const minRowHeight = dateRowH + maxBarsPerDay * barH + (maxBarsPerDay - 1) * 2 + 4;
+    const minRowHeight = dateRowH + villaLines * (barH + 2) + 4;
 
     const renderMonthGrid = (mWeeks: Date[][], mDate: Date) => {
       return (
@@ -524,8 +538,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   })}
                 </div>
 
-                {/* Overlaid Continuous Booking Bars Layer (7 columns) - Responsive */}
-                <div className="absolute top-5 md:top-6 left-0 right-0 bottom-0.5 px-0.5 md:px-1 pointer-events-none z-10 grid grid-cols-7 gap-x-[0.5px] md:gap-x-[1px] gap-y-0.5 overflow-hidden">
+                {/*
+                  Booking bars, positioned by percentage rather than whole-day
+                  grid columns. A stay runs from midday on the check-in day to
+                  midday on the check-out day, which is what makes back-to-back
+                  bookings read correctly: the departing guest occupies the left
+                  half of the changeover day and the arriving guest the right
+                  half, meeting at a visible seam instead of merging into one
+                  continuous bar. Vertical slot is fixed per villa.
+                */}
+                <div className="absolute top-5 md:top-6 left-0 right-0 bottom-0.5 px-0.5 md:px-1 pointer-events-none z-10 overflow-hidden">
                   {weekBookings.map((booking) => {
                     const prop = propertyMap.get(booking.propertyId);
                     const color = prop?.color || '#1a73e8';
@@ -533,26 +555,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     const bStart = booking.bookingDate;
                     const bEnd = booking.endDate || booking.bookingDate;
 
-                    let startCol = 1;
-                    if (bStart >= weekStartStr) {
-                      startCol = getDay(parseISO(bStart)) + 1;
-                    }
-
-                    let endCol = 8;
-                    if (bEnd <= weekEndStr) {
-                      if (bEnd === bStart) {
-                        endCol = startCol + 1;
-                      } else {
-                        const endDayIdx = getDay(parseISO(bEnd));
-                        endCol = Math.max(startCol + 1, endDayIdx + 1);
-                      }
-                    }
-
                     const isStartInWeek = bStart >= weekStartStr;
                     const isEndInWeek = bEnd <= weekEndStr;
                     const isMultiDay = bEnd > bStart;
                     const todayStr = format(new Date(), 'yyyy-MM-dd');
                     const isPastBooking = bEnd < todayStr;
+
+                    // Position in days from the start of the week. The 0.5
+                    // offsets are the midday check-in / check-out convention;
+                    // a stay running past the week edge is clamped flush.
+                    const startPos = isStartInWeek ? getDay(parseISO(bStart)) + 0.5 : 0;
+                    let endPos = isEndInWeek ? getDay(parseISO(bEnd)) + 0.5 : 7;
+                    // A same-day booking has no nights, so give it the
+                    // remainder of its own day rather than zero width.
+                    if (isEndInWeek && endPos <= startPos) endPos = startPos + 1;
+
+                    const leftPct = (startPos / 7) * 100;
+                    const widthPct = ((endPos - startPos) / 7) * 100;
+
+                    const row = propertyRowIndex.get(booking.propertyId) ?? 0;
+                    const rowStride = barH + 2;
 
                     let nights = 1;
                     if (isMultiDay) {
@@ -567,15 +589,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           setSelectedDateStr(bStart >= weekStartStr ? bStart : weekStartStr);
                           onSelectBooking(booking);
                         }}
+                        title={`${booking.guestName || 'Guest'} — ${prop?.name || ''} — ${bStart} to ${bEnd}`}
                         style={{
-                          gridColumnStart: startCol,
-                          gridColumnEnd: endCol,
+                          position: 'absolute',
+                          left: `${leftPct}%`,
+                          width: `${widthPct}%`,
+                          top: `${row * rowStride}px`,
+                          height: `${barH}px`,
                           backgroundColor: color,
                         }}
-                        className={`pointer-events-auto h-3 md:h-4.5 px-0.5 md:px-1.5 text-[7px] md:text-[9px] text-white font-extrabold flex items-center justify-between cursor-pointer hover:opacity-95 transition-all truncate leading-none rounded-sm md:rounded-md shadow-xs ${
+                        className={`pointer-events-auto px-0.5 md:px-1.5 text-[7px] md:text-[9px] text-white font-extrabold flex items-center justify-between cursor-pointer hover:opacity-95 hover:z-20 transition-opacity truncate leading-none shadow-xs box-border ${
                           isPastBooking ? 'opacity-40 saturate-50 contrast-75' : ''
                         } ${
                           isStartInWeek ? 'rounded-l-sm md:rounded-l-md' : 'rounded-l-none'
+                        } ${
+                          isEndInWeek ? 'rounded-r-sm md:rounded-r-md' : 'rounded-r-none'
                         }`}
                       >
                         <div className="flex items-center space-x-0.5 md:space-x-1 truncate leading-none">
