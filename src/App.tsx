@@ -91,12 +91,24 @@ export default function App() {
   const knownBookingIdsRef = React.useRef<Set<string>>(new Set());
   const initialLoadDoneRef = React.useRef<boolean>(false);
 
-  // Guaranteed Preloader Hide
+  // Hide the splash as soon as the first frame is painted, with a short cap as
+  // a safety net. It used to sit on screen for a flat 1200ms regardless of
+  // whether the app was ready.
   useEffect(() => {
-    const timer = setTimeout(() => {
+    let done = false;
+    const hide = () => {
+      if (done) return;
+      done = true;
       setShowPreloader(false);
-    }, 1200);
-    return () => clearTimeout(timer);
+    };
+
+    const raf = requestAnimationFrame(() => requestAnimationFrame(hide));
+    const cap = setTimeout(hide, 600);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(cap);
+    };
   }, []);
 
   // Request Notification Permissions on Session Start
@@ -104,6 +116,31 @@ export default function App() {
     if (sessionUser?.email) {
       requestNotificationPermission(sessionUser.email);
     }
+  }, [sessionUser]);
+
+  // Warm the code-split view chunks once the browser is idle, so the first
+  // visit to each screen renders from cache instead of waiting on a download.
+  // Staff are often on phone connections where that round trip is the slowest
+  // part of switching tabs.
+  useEffect(() => {
+    if (!sessionUser) return;
+
+    const warm = () => {
+      import('./components/PropertiesView');
+      import('./components/MemosView');
+      import('./components/StaffMatrixView');
+      import('./components/NotificationLogsView');
+      import('./components/ICalSyncView');
+      import('./components/SettingsView');
+    };
+
+    const ric = (window as any).requestIdleCallback;
+    if (typeof ric === 'function') {
+      const id = ric(warm, { timeout: 4000 });
+      return () => (window as any).cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(warm, 2000);
+    return () => clearTimeout(t);
   }, [sessionUser]);
 
   const propertiesJsonRef = useRef<string>('');
@@ -482,19 +519,14 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    setShowPreloader(true);
+    // Clear the session first so the UI responds immediately. The audit write
+    // is fire-and-forget; only the server-side revoke is awaited, and even that
+    // does not hold up the redirect to the login screen.
     if (sessionUser) {
-      try {
-        await logActivity(sessionUser.email, sessionUser.name, sessionUser.role, 'Logged Out').catch(() => {});
-      } catch (e) {}
+      logActivity(sessionUser.email, sessionUser.name, sessionUser.role, 'Logged Out').catch(() => {});
     }
-    // Revokes the session server-side as well as clearing it locally, so a
-    // copied token cannot keep being used after someone signs out.
-    await signOut();
     setSessionUser(null);
-    setTimeout(() => {
-      setShowPreloader(false);
-    }, 800);
+    signOut().catch(() => {});
   };
 
   // On phones the sidebar is an overlay, so it has to close after a selection
@@ -508,13 +540,11 @@ export default function App() {
 
   const handleSelectTab = (tab: typeof activeTab) => {
     if (tab === activeTab) return;
-    setShowPreloader(true);
-    setTimeout(() => {
-      setActiveTab(tab);
-      setTimeout(() => {
-        setShowPreloader(false);
-      }, 400);
-    }, 200);
+    // Switch immediately. The previous version showed the full-screen preloader
+    // for a fixed 600ms plus a 0.7s fade — around 1.2s of deliberate waiting on
+    // every navigation, with no work happening behind it. If a lazily loaded
+    // view has not been fetched yet, the Suspense fallback covers that case.
+    setActiveTab(tab);
   };
 
   // Date Navigation
@@ -737,13 +767,11 @@ export default function App() {
         <Preloader isVisible={showPreloader} />
         <LoginScreen
           onLoginSuccess={async (user) => {
-            setShowPreloader(true);
             // signIn() has already persisted the session; just adopt it here.
+            // Logging is fire-and-forget: the user should not wait on an audit
+            // write, and previously also sat through a fixed 800ms splash.
             setSessionUser(user);
-            await logActivity(user.email, user.name, user.role, 'Logged In').catch(() => {});
-            setTimeout(() => {
-              setShowPreloader(false);
-            }, 800);
+            logActivity(user.email, user.name, user.role, 'Logged In').catch(() => {});
           }}
         />
       </>

@@ -10,7 +10,7 @@ export const Preloader: React.FC<PreloaderProps> = ({ isVisible }) => {
       className="fixed inset-0 z-[9999] flex flex-col items-center justify-center select-none"
       style={{
         background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 40%, #0c2340 100%)',
-        transition: 'opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1), transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: 'opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         opacity: isVisible ? 1 : 0,
         transform: isVisible ? 'scale(1)' : 'scale(1.04)',
         pointerEvents: isVisible ? 'all' : 'none',
