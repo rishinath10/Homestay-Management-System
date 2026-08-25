@@ -111,30 +111,59 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setSlideOffset(-33.333);
   };
 
+  // Now that a month can be taller than the screen and scrolls vertically, a
+  // drag has to be classified before it is acted on: a mostly-vertical gesture
+  // is the user scrolling and must not drag the month sideways.
+  const touchStartYRef = React.useRef<number | null>(null);
+  const gestureAxisRef = React.useRef<'undecided' | 'horizontal' | 'vertical'>('undecided');
+
   const onTouchStart = (e: React.TouchEvent) => {
     if (isTransitioning) return;
     setTouchStartX(e.targetTouches[0].clientX);
+    touchStartYRef.current = e.targetTouches[0].clientY;
+    gestureAxisRef.current = 'undecided';
     setDeltaX(0);
     setUseTransition(false);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
     if (touchStartX === null) return;
-    const currentX = e.targetTouches[0].clientX;
-    const diff = currentX - touchStartX;
-    setDeltaX(diff);
 
+    const currentX = e.targetTouches[0].clientX;
+    const currentY = e.targetTouches[0].clientY;
+    const diff = currentX - touchStartX;
+    const diffY = currentY - (touchStartYRef.current ?? currentY);
+
+    // Lock the axis once the finger has moved far enough to tell them apart.
+    if (gestureAxisRef.current === 'undecided') {
+      const AXIS_LOCK_PX = 10;
+      if (Math.abs(diff) > AXIS_LOCK_PX || Math.abs(diffY) > AXIS_LOCK_PX) {
+        gestureAxisRef.current = Math.abs(diff) > Math.abs(diffY) ? 'horizontal' : 'vertical';
+      }
+    }
+
+    if (gestureAxisRef.current !== 'horizontal') return;
+
+    setDeltaX(diff);
     const containerWidth = containerRef.current?.offsetWidth || window.innerWidth;
-    const percent = (diff / containerWidth) * 33.333; // since one month panel occupies 1/3 (33.333%) of track width
+    const percent = (diff / containerWidth) * 33.333; // one month panel is 1/3 of the track
     setSlideOffset(-33.333 + percent);
   };
 
   const onTouchEnd = () => {
     if (touchStartX === null) return;
-    const containerWidth = containerRef.current?.offsetWidth || window.innerWidth;
     const minSwipeDistance = 50; // minimum distance in px to register a swipe
 
+    const wasHorizontal = gestureAxisRef.current === 'horizontal';
     setTouchStartX(null);
+    touchStartYRef.current = null;
+    gestureAxisRef.current = 'undecided';
+
+    // A vertical scroll must leave the month where it is.
+    if (!wasHorizontal) {
+      setDeltaX(0);
+      return;
+    }
 
     if (deltaX > minSwipeDistance && onNavigateDate) {
       // Swiped Right -> Prev Month
@@ -404,12 +433,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const currMonthWeeks = getMonthWeeks(displayDate);
     const nextMonthWeeks = getMonthWeeks(addMonths(displayDate, 1));
 
+    // A day can hold one booking per villa, so a week row has to be tall enough
+    // to show every villa's bar at once — otherwise the later ones are clipped
+    // and staff simply do not see them. Rows were previously a plain 1fr, which
+    // on a phone or a landscape tablet left roughly 80px and hid bookings.
+    //   mobile : 20px date row + 5 bars x 12px + 4 gaps x 2px + 2px  =  90px
+    //   desktop: 24px date row + 5 bars x 18px + 4 gaps x 2px + 2px  = 124px
+    const maxBarsPerDay = Math.max(properties.length, 5);
+    const barH = isMobile ? 12 : 18;
+    const dateRowH = isMobile ? 20 : 24;
+    const minRowHeight = dateRowH + maxBarsPerDay * barH + (maxBarsPerDay - 1) * 2 + 4;
+
     const renderMonthGrid = (mWeeks: Date[][], mDate: Date) => {
       return (
-        <div 
-          className="w-full flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 overflow-hidden"
-          style={{ 
-            gridTemplateRows: `repeat(${mWeeks.length}, 1fr)`
+        <div
+          className="w-full flex-1 grid gap-[1px] bg-gray-200 border-b border-gray-200 overflow-x-hidden"
+          style={{
+            gridTemplateRows: `repeat(${mWeeks.length}, minmax(${minRowHeight}px, 1fr))`
           }}
         >
           {mWeeks.map((week, weekIdx) => {
@@ -602,15 +642,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 onTouchEnd={onTouchEnd}
               >
                 {/* Previous Month Panel */}
-                <div className="w-1/3 h-full flex flex-col min-h-0">
+                <div className="w-1/3 h-full flex flex-col min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar">
                   {renderMonthGrid(prevMonthWeeks, subMonths(displayDate, 1))}
                 </div>
                 {/* Current Month Panel */}
-                <div className="w-1/3 h-full flex flex-col min-h-0">
+                <div className="w-1/3 h-full flex flex-col min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar">
                   {renderMonthGrid(currMonthWeeks, displayDate)}
                 </div>
                 {/* Next Month Panel */}
-                <div className="w-1/3 h-full flex flex-col min-h-0">
+                <div className="w-1/3 h-full flex flex-col min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar">
                   {renderMonthGrid(nextMonthWeeks, addMonths(displayDate, 1))}
                 </div>
               </div>
